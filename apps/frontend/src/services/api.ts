@@ -116,4 +116,15 @@ export class ApiService {
     if (!res.ok) throw new Error('Lỗi kích hoạt render');
     return res.json();
   }
+
+  static async retryPipeline(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/projects/${id}/pipeline/retry`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Lỗi thử lại tiến trình');
+    }
+    return res.json();
+  }
 }

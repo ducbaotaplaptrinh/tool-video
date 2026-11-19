@@ -1,0 +1,44 @@
+name: VietSu AI Studio CI
+
+on:
+  push:
+    branches: [ main, 'feat/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install FFmpeg & Headless Chromium Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2
+
+      - name: Install Monorepo Dependencies
+        run: npm install
+
+      - name: Generate Prisma Client & Push Database Schema
+        run: |
+          cd apps/backend
+          npx prisma db push --skip-generate
+          npx prisma generate
+          cd ../..
+
+      - name: Monorepo Clean Build & TypeScript Check
+        run: npm run build
+
+      - name: Run Backend & Video Verification Test Suite
+        run: |
+          cd apps/backend
+          npm run test

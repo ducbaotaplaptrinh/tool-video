@@ -14,9 +14,10 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
     dossier: {
       topic: 'Chiến thắng Bạch Đằng năm 938 của Ngô Quyền',
       historicalEra: 'Thời kỳ Tự chủ & Tiền Ngô',
-      summary: 'Năm 938, Ngô Quyền lãnh đạo quân dân Đại Việt đánh tan quân xâm lược Nam Hán do Hoằng Thao chỉ huy trên sông Bạch Đằng bằng chiến thuật cọc ngầm bịt sắt, kết thúc hơn 1000 năm Bắc thuộc, mở ra kỷ nguyên độc lập tự chủ lâu dài cho dân tộc.',
+      summary: 'Năm 938, Ngô Quyền lãnh đạo quân dân Đại Việt đánh tan quân xâm lược Nam Hán do Hoằng Thao chỉ huy trên sông Bạch Đằng bằng chiến thuật cọc ngầm bịt sắt, kết thúc hơn 1000 năm Bắc thuộc, mở ra kỷ nguyên độc lập tự chủ lâu dài cho dân tộc. (Dữ liệu cơ sở mẫu của VietSu Mock Engine)',
       verifiedAt: new Date().toISOString(),
-      isApproved: true,
+      isApproved: false,
+      isMockEngine: true,
       facts: [
         {
           id: 'fact-bd-1',
@@ -25,6 +26,8 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
           yearOrEra: 'Năm 938',
           keyFigures: ['Ngô Quyền', 'Lưu Hoằng Thao', 'Lưu Cung'],
           location: 'Cửa sông Bạch Đằng (vùng giáp ranh Hải Phòng - Quảng Ninh ngày nay)',
+          isApproved: false,
+          isMockSource: true,
           citations: [
             {
               id: 'cite-bd-1',
@@ -33,7 +36,8 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
               volumeOrChapter: 'Ngoại kỷ - Quyển V: Tiền Ngô Vương',
               pageOrSection: 'Tờ 11a',
               quoteExcerpt: 'Vương sai đóng cọc lớn vạt nhọn, đầu bịt sắt ngầm ở cửa biển trước, rồi cho thuyền nhẹ ra khiêu chiến khi triều lên...',
-              verificationUrl: 'https://vi.wikipedia.org/wiki/Tr%E1%BA%ADn_B%E1%BA%A1ch_%C4%90%E1%BA%B1ng_(938)'
+              verificationUrl: 'https://vi.wikipedia.org/wiki/Tr%E1%BA%ADn_B%E1%BA%A1ch_%C4%90%E1%BA%B1ng_(938)',
+              isMockSource: true
             },
             {
               id: 'cite-bd-2',
@@ -41,7 +45,8 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
               author: 'Ngô Thì Sĩ',
               volumeOrChapter: 'Tiền Ngô Vương kỷ',
               pageOrSection: 'Mục năm Mậu Tuất (938)',
-              quoteExcerpt: 'Hoằng Thao khinh địch đuổi theo, khi triều rút, thuyền giặc mắc vào cọc ngầm bị đắm tan tác.'
+              quoteExcerpt: 'Hoằng Thao khinh địch đuổi theo, khi triều rút, thuyền giặc mắc vào cọc ngầm bị đắm tan tác.',
+              isMockSource: true
             }
           ]
         },
@@ -52,13 +57,16 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
           yearOrEra: 'Mùa đông năm 938',
           keyFigures: ['Hoằng Thao', 'Lưu Cung', 'Ngô Quyền'],
           location: 'Cửa biển Bạch Đằng',
+          isApproved: false,
+          isMockSource: true,
           citations: [
             {
               id: 'cite-bd-3',
               sourceTitle: 'Khâm Định Việt Sử Thông Giám Cương Mục',
               author: 'Quốc Sử Quán Triều Nguyễn',
               volumeOrChapter: 'Tiền biên - Quyển V',
-              quoteExcerpt: 'Lưu Cung thương khóc, thu nhặt tàn quân rút lui, từ đó không dám nhòm ngó phương Nam nữa.'
+              quoteExcerpt: 'Lưu Cung thương khóc, thu nhặt tàn quân rút lui, từ đó không dám nhòm ngó phương Nam nữa.',
+              isMockSource: true
             }
           ]
         },
@@ -69,13 +77,16 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
           yearOrEra: 'Khai quật khảo cổ 1958 - 2019',
           keyFigures: ['Các nhà khảo cổ Viện Khảo cổ học Việt Nam'],
           location: 'Khu di tích bãi cọc Yên Giang và bãi cọc Cao Quỳ',
+          isApproved: false,
+          isMockSource: true,
           citations: [
             {
               id: 'cite-bd-4',
               sourceTitle: 'Báo cáo Khảo cổ học Việt Nam',
               author: 'Viện Khảo cổ học',
               volumeOrChapter: 'Số 4/2020',
-              quoteExcerpt: 'Phân tích niên đại Carbon C14 trên mẫu gỗ cọc lim, sến, táu cho thấy các mốc trùng khớp với thế kỷ X và XIII.'
+              quoteExcerpt: 'Phân tích niên đại Carbon C14 trên mẫu gỗ cọc lim, sến, táu cho thấy các mốc trùng khớp với thế kỷ X và XIII.',
+              isMockSource: true
             }
           ]
         }
@@ -90,7 +101,7 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
       fullNarrative: 'Bạn có biết: Một con sông đã chôn vùi dã tâm của cả một đế chế phương Bắc chỉ trong nửa ngày? Năm 938, đoàn chiến thuyền Nam Hán hung hãn tiến vào Đại Việt. Nhưng Ngô Quyền đã bày sẵn bãi cọc ngầm bịt sắt. Khi thủy triều rút cạn, thuyền giặc mắc cạn vỡ tan tành. Chiến thắng Bạch Đằng chấm dứt hơn 1000 năm Bắc thuộc, mở ra kỷ nguyên tự chủ muôn đời!',
       totalWords: 72,
       estimatedTotalDurationSec: 30,
-      isApproved: true,
+      isApproved: false,
       scenes: [
         {
           sceneNumber: 1,
@@ -142,9 +153,10 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
     dossier: {
       topic: 'Trận Rạch Gầm - Xoài Mút năm 1785',
       historicalEra: 'Thời kỳ Tây Sơn (1778 - 1802)',
-      summary: 'Đầu năm 1785, Nguyễn Huệ chỉ huy nghĩa quân Tây Sơn mai phục và tiêu diệt gần như hoàn toàn 5 vạn quân Xiêm La (Thái Lan) trên khúc sông Tiền đoạn từ Rạch Gầm đến Xoài Mút (Tiền Giang ngày nay), bảo vệ vững chắc chủ quyền bờ cõi phương Nam.',
+      summary: 'Đầu năm 1785, Nguyễn Huệ chỉ huy nghĩa quân Tây Sơn mai phục và tiêu diệt gần như hoàn toàn 5 vạn quân Xiêm La trên khúc sông Tiền đoạn từ Rạch Gầm đến Xoài Mút. (Dữ liệu cơ sở mẫu của VietSu Mock Engine)',
       verifiedAt: new Date().toISOString(),
-      isApproved: true,
+      isApproved: false,
+      isMockEngine: true,
       facts: [
         {
           id: 'fact-rg-1',
@@ -153,13 +165,16 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
           yearOrEra: 'Đêm 19 rạng sáng 20 tháng 1 năm 1785',
           keyFigures: ['Nguyễn Huệ', 'Chiêu Tăng', 'Chiêu Sương', 'Nguyễn Ánh'],
           location: 'Sông Tiền, đoạn Rạch Gầm đến Xoài Mút (Tiền Giang)',
+          isApproved: false,
+          isMockSource: true,
           citations: [
             {
               id: 'cite-rg-1',
               sourceTitle: 'Đại Nam Thực Lục',
               author: 'Quốc Sử Quán Triều Nguyễn',
               volumeOrChapter: 'Tiền biên - Quyển 12',
-              quoteExcerpt: 'Quân Tây Sơn đón đánh ở Rạch Gầm, dùng súng lớn và hỏa hổ bắn phá dữ dội, thuyền giặc tan vỡ...'
+              quoteExcerpt: 'Quân Tây Sơn đón đánh ở Rạch Gầm, dùng súng lớn và hỏa hổ bắn phá dữ dội, thuyền giặc tan vỡ...',
+              isMockSource: true
             }
           ]
         }
@@ -174,7 +189,7 @@ export const PREDEFINED_HISTORY_TOPICS: Record<string, PredefinedTopic> = {
       fullNarrative: 'Chỉ trong một đêm, Nguyễn Huệ đã quét sạch 5 vạn quân ngoại bang bằng hỏa công sấm sét! Năm 1785, liên quân Xiêm La tràn vào cướp phá phương Nam. Tại khúc sông Rạch Gầm, pháo lệnh Tây Sơn nổ vang, thuyền chiến phóng hỏa biến dòng sông thành biển lửa! Người Xiêm sau trận này sợ Tây Sơn như cọp!',
       totalWords: 64,
       estimatedTotalDurationSec: 28,
-      isApproved: true,
+      isApproved: false,
       scenes: [
         {
           sceneNumber: 1,

@@ -13,6 +13,8 @@ import util from 'util';
 import fs from 'fs';
 import { StorageService } from '../storage/storage.service.js';
 
+const videoRendererDir = path.resolve(__dirname, '../../../video-renderer');
+
 const execAsync = util.promisify(exec);
 
 export class WorkflowEngine {
@@ -31,6 +33,15 @@ export class WorkflowEngine {
       WorkflowEngine.instance = new WorkflowEngine();
     }
     return WorkflowEngine.instance;
+  }
+
+  private async checkConcurrencyLock(projectId: string) {
+    const runningJob = await prisma.job.findFirst({
+      where: { projectId, status: 'RUNNING' }
+    });
+    if (runningJob) {
+      throw new Error(`Dự án đang có tác vụ "${runningJob.step}" đang xử lý. Vui lòng chờ tác vụ hoàn tất trước khi kích hoạt bước tiếp theo.`);
+    }
   }
 
   private async createJob(projectId: string, step: string) {
@@ -97,6 +108,12 @@ export class WorkflowEngine {
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new Error('Không tìm thấy dự án');
 
+    if (project.status !== 'DRAFT' && project.status !== 'FAILED') {
+      throw new Error(`Không thể bắt đầu nghiên cứu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là DRAFT hoặc FAILED.`);
+    }
+
+    await this.checkConcurrencyLock(projectId);
+
     const job = await this.createJob(projectId, 'RESEARCH');
     try {
       await prisma.project.update({
@@ -109,7 +126,7 @@ export class WorkflowEngine {
 
       await this.updateJobLog(job.id, `Trích xuất ${dossier.facts.length} dữ kiện lịch sử có nguồn chứng thực`, 60);
 
-      // Save research items to DB
+      // Save research items to DB (initially isApproved = false)
       await prisma.researchItem.deleteMany({ where: { projectId } });
       for (const fact of dossier.facts) {
         await prisma.researchItem.create({
@@ -120,7 +137,8 @@ export class WorkflowEngine {
             yearOrEra: fact.yearOrEra,
             keyFigures: JSON.stringify(fact.keyFigures),
             location: fact.location,
-            citations: JSON.stringify(fact.citations)
+            citations: JSON.stringify(fact.citations),
+            isApproved: false
           }
         });
       }
@@ -165,6 +183,18 @@ export class WorkflowEngine {
     });
     if (!project) throw new Error('Không tìm thấy dự án');
 
+    if (project.status !== 'RESEARCH_PENDING_APPROVAL') {
+      throw new Error(`Không thể duyệt sử liệu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là RESEARCH_PENDING_APPROVAL.`);
+    }
+
+    await this.checkConcurrencyLock(projectId);
+
+    // Synchronize isApproved state in DB
+    await prisma.researchItem.updateMany({
+      where: { projectId },
+      data: { isApproved: true }
+    });
+
     const job = await this.createJob(projectId, 'SCRIPTING');
     try {
       await prisma.project.update({
@@ -187,13 +217,14 @@ export class WorkflowEngine {
           yearOrEra: item.yearOrEra,
           keyFigures: JSON.parse(item.keyFigures),
           location: item.location,
-          citations: JSON.parse(item.citations)
+          citations: JSON.parse(item.citations),
+          isApproved: true
         }))
       };
 
       const scriptDoc = await this.scriptAgent.execute(dossier);
 
-      // Save script to DB
+      // Save script to DB (initially isApproved = false)
       await prisma.script.upsert({
         where: { projectId },
         create: {
@@ -261,6 +292,10 @@ export class WorkflowEngine {
       await this.completeJob(job.id, 'Đã hoàn tất kịch bản và phân rã các cảnh. Chờ phê duyệt.');
     } catch (err: any) {
       await this.failJob(job.id, err.message);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'FAILED' }
+      });
       throw err;
     }
   }
@@ -272,6 +307,18 @@ export class WorkflowEngine {
       include: { script: true, scenes: { orderBy: { sceneNumber: 'asc' } }, researchItems: true }
     });
     if (!project || !project.script) throw new Error('Dự án chưa có kịch bản');
+
+    if (project.status !== 'SCRIPT_PENDING_APPROVAL') {
+      throw new Error(`Không thể duyệt kịch bản khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là SCRIPT_PENDING_APPROVAL.`);
+    }
+
+    await this.checkConcurrencyLock(projectId);
+
+    // Synchronize isApproved state in DB
+    await prisma.script.update({
+      where: { projectId },
+      data: { isApproved: true }
+    });
 
     const job = await this.createJob(projectId, 'ASSET_GENERATION');
     try {
@@ -377,6 +424,10 @@ export class WorkflowEngine {
       await this.runEditingAndQA(projectId, visuals, audios);
     } catch (err: any) {
       await this.failJob(job.id, err.message);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'FAILED' }
+      });
       throw err;
     }
   }
@@ -404,6 +455,7 @@ export class WorkflowEngine {
         summary: project.description || project.title,
         verifiedAt: new Date().toISOString(),
         isApproved: true,
+        isMockEngine: true,
         facts: project.researchItems.map(item => ({
           id: item.id,
           category: item.category as any,
@@ -411,7 +463,8 @@ export class WorkflowEngine {
           yearOrEra: item.yearOrEra,
           keyFigures: JSON.parse(item.keyFigures),
           location: item.location,
-          citations: JSON.parse(item.citations)
+          citations: JSON.parse(item.citations),
+          isApproved: item.isApproved
         }))
       };
 
@@ -468,6 +521,10 @@ export class WorkflowEngine {
       );
     } catch (err: any) {
       await this.failJob(job.id, err.message);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'FAILED' }
+      });
       throw err;
     }
   }
@@ -479,6 +536,12 @@ export class WorkflowEngine {
       include: { scenes: { orderBy: { sceneNumber: 'asc' } }, script: true, researchItems: true }
     });
     if (!project) throw new Error('Không tìm thấy dự án');
+
+    if (project.status !== 'READY_TO_RENDER' && project.status !== 'COMPLETED') {
+      throw new Error(`Không thể xuất video khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là READY_TO_RENDER hoặc COMPLETED.`);
+    }
+
+    await this.checkConcurrencyLock(projectId);
 
     const job = await this.createJob(projectId, 'RENDERING');
     try {
@@ -525,13 +588,13 @@ export class WorkflowEngine {
       await this.updateJobLog(job.id, 'Khởi động Remotion Render Engine (1080x1920 @ 30fps)...', 40);
 
       // Path to video-renderer render script
-      const rendererScriptPath = path.resolve(process.cwd(), '../video-renderer/src/render-cli.ts');
+      const rendererScriptPath = path.resolve(videoRendererDir, 'src/render-cli.ts');
       const cmd = `npx tsx "${rendererScriptPath}" --props="${tempPropsPath}" --output="${outputPath}"`;
 
       await this.updateJobLog(job.id, 'Đang xuất MP4 với H.264 và FFmpeg...', 60);
 
-      const { stdout, stderr } = await execAsync(cmd, {
-        cwd: path.resolve(process.cwd(), '../video-renderer'),
+      const { stdout } = await execAsync(cmd, {
+        cwd: videoRendererDir,
         maxBuffer: 1024 * 1024 * 10
       });
 
@@ -571,5 +634,57 @@ export class WorkflowEngine {
       return this.renderVideo(projectId);
     }
     throw new Error(`Bước ${stepName} không hỗ trợ chạy lại`);
+  }
+
+  // 7. Retry a failed project
+  public async retry(projectId: string) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        jobs: { orderBy: { startedAt: 'desc' }, take: 1 },
+        researchItems: true,
+        script: true
+      }
+    });
+
+    if (!project) throw new Error('Không tìm thấy dự án');
+    if (project.status !== 'FAILED') {
+      throw new Error(`Dự án đang ở trạng thái "${project.status}", không cần thử lại.`);
+    }
+
+    const lastJob = project.jobs[0];
+    const failedStep = lastJob ? lastJob.step : 'RESEARCH';
+
+    // Increment retry count
+    if (lastJob) {
+      await prisma.job.update({
+        where: { id: lastJob.id },
+        data: { retryCount: (lastJob.retryCount || 0) + 1 }
+      });
+    }
+
+    if (failedStep === 'RESEARCH') {
+      return this.startPipeline(projectId);
+    } else if (failedStep === 'SCRIPTING') {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'RESEARCH_PENDING_APPROVAL' }
+      });
+      return this.approveResearch(projectId);
+    } else if (failedStep === 'ASSET_GENERATION' || failedStep === 'EDITING_AND_QA') {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'SCRIPT_PENDING_APPROVAL' }
+      });
+      return this.approveScript(projectId);
+    } else if (failedStep === 'RENDERING') {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'READY_TO_RENDER' }
+      });
+      return this.renderVideo(projectId);
+    }
+
+    return this.startPipeline(projectId);
   }
 }

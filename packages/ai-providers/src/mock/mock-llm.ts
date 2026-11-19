@@ -28,19 +28,21 @@ export class MockLLMProvider implements ILLMProvider {
     // Default dynamic historical facts for any requested Vietnamese topic
     const citation1: HistoricalCitation = {
       id: `cite-${Date.now()}-1`,
-      sourceTitle: 'Đại Việt Sử Ký Toàn Thư',
+      sourceTitle: 'Đại Việt Sử Ký Toàn Thư (Mô phỏng Mock Engine)',
       author: 'Ngô Sĩ Liên & Sử thần nhà Lê',
       volumeOrChapter: 'Bản kỷ toàn thư',
-      quoteExcerpt: `Ghi chép về sự kiện ${topic} trong dòng chảy hưng thịnh của non sông Đại Việt.`,
-      verificationUrl: 'https://vi.wikipedia.org/wiki/L%E1%BB%8Bch_s%E1%BB%AD_Vi%E1%BB%87t_Nam'
+      quoteExcerpt: `Trích lược mô phỏng về sự kiện ${topic} phục vụ kiểm thử nội bộ pipeline.`,
+      verificationUrl: 'https://vi.wikipedia.org/wiki/L%E1%BB%8Bch_s%E1%BB%AD_Vi%E1%BB%87t_Nam',
+      isMockSource: true
     };
 
     const citation2: HistoricalCitation = {
       id: `cite-${Date.now()}-2`,
-      sourceTitle: 'Khâm Định Việt Sử Thông Giám Cương Mục',
+      sourceTitle: 'Khâm Định Việt Sử Thông Giám Cương Mục (Mô phỏng Mock Engine)',
       author: 'Quốc Sử Quán Triều Nguyễn',
       volumeOrChapter: 'Chính biên',
-      quoteExcerpt: `Khảo đính nghiêm cẩn về ${topic}, khẳng định tinh thần tự cường dân tộc.`
+      quoteExcerpt: `Trích lược mô phỏng về ${topic}, dữ kiện sinh tự động bởi Mock Engine.`,
+      isMockSource: true
     };
 
     const facts: ResearchFact[] = [
@@ -51,7 +53,9 @@ export class MockLLMProvider implements ILLMProvider {
         yearOrEra: historicalEra,
         keyFigures: ['Anh hùng dân tộc Việt Nam'],
         location: 'Đất nước Việt Nam',
-        citations: [citation1, citation2]
+        citations: [citation1, citation2],
+        isApproved: false,
+        isMockSource: true
       },
       {
         id: `fact-${Date.now()}-2`,
@@ -60,17 +64,20 @@ export class MockLLMProvider implements ILLMProvider {
         yearOrEra: 'Thời kỳ khảo cổ hiện đại',
         keyFigures: ['Nhóm nghiên cứu Viện Sử học'],
         location: 'Các khu di tích lịch sử quốc gia',
-        citations: [citation1]
+        citations: [citation1],
+        isApproved: false,
+        isMockSource: true
       }
     ];
 
     return {
       topic,
       historicalEra,
-      summary: `Tài liệu nghiên cứu thẩm định về "${topic}" thuộc ${historicalEra}. Dữ kiện đã được đối chiếu với Đại Việt Sử Ký Toàn Thư và Khâm Định Việt Sử Thông Giám Cương Mục.`,
+      summary: `Tài liệu nghiên cứu thẩm định về "${topic}" thuộc ${historicalEra}. Dữ liệu được cung cấp bởi MockLLM Provider phục vụ phát triển & kiểm thử nội bộ.`,
       facts,
       verifiedAt: new Date().toISOString(),
-      isApproved: false
+      isApproved: false,
+      isMockEngine: true
     };
   }
 

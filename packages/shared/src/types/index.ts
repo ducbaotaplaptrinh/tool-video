@@ -10,6 +10,7 @@ export interface HistoricalCitation {
   pageOrSection?: string;
   quoteExcerpt: string;
   verificationUrl?: string;
+  isMockSource?: boolean;
 }
 
 export interface ResearchFact {
@@ -20,6 +21,8 @@ export interface ResearchFact {
   keyFigures: string[];
   location: string;
   citations: HistoricalCitation[];
+  isApproved?: boolean;
+  isMockSource?: boolean;
 }
 
 export interface ResearchDossier {
@@ -29,6 +32,7 @@ export interface ResearchDossier {
   facts: ResearchFact[];
   verifiedAt: string;
   isApproved: boolean;
+  isMockEngine?: boolean;
 }
 
 export type CameraMotion = 'ZOOM_IN' | 'ZOOM_OUT' | 'PAN_LEFT' | 'PAN_RIGHT' | 'STATIC';
@@ -149,6 +153,7 @@ export interface JobRecord {
   progressPercent: number;
   logs: string[];
   error?: string;
+  retryCount?: number;
   startedAt?: string;
   completedAt?: string;
 }
@@ -159,8 +164,11 @@ export interface QAReport {
   timingMatchScore: number;
   spellingQualityScore: number;
   sourceCitationScore: number;
+  subtitleSyncScore: number;
   safeZoneCheckPassed: boolean;
+  isIndependentlyVerified: boolean;
   warnings: string[];
+  detailedChecks: Record<string, boolean>;
 }
 
 export interface ProjectDetail {

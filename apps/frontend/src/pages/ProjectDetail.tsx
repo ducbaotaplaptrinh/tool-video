@@ -108,6 +108,16 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectId, onBack 
     }
   };
 
+  const handleRetry = async () => {
+    setActionLoading(true);
+    try {
+      await ApiService.retryPipeline(projectId);
+      await loadProject();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Top Header / Breadcrumb */}
@@ -171,6 +181,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectId, onBack 
         onApproveResearch={handleApproveResearch}
         onApproveScript={handleApproveScript}
         onStartRender={handleStartRender}
+        onRetry={handleRetry}
         loading={actionLoading}
       />
 
