@@ -67,6 +67,9 @@ export const KenBurnsScene: React.FC<KenBurnsSceneProps> = ({ visualUrl, motion 
       >
         <Img
           src={visualUrl}
+          onError={(e) => {
+            console.warn('[KenBurnsScene] Image load warning for src:', visualUrl.slice(0, 50));
+          }}
           style={{
             width: '100%',
             height: '100%',

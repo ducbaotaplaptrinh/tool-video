@@ -13,7 +13,10 @@ export const HistoricalCitationSchema = z.object({
   volumeOrChapter: z.string().min(1, 'Quyển hoặc chương sử liệu không được để trống'),
   pageOrSection: z.string().optional(),
   quoteExcerpt: z.string().min(5, 'Trích dẫn xác minh phải có ít nhất 5 ký tự'),
-  verificationUrl: z.string().url().optional().or(z.literal(''))
+  verificationUrl: z.string().url().optional().or(z.literal('')),
+  isMockSource: z.boolean().optional().default(false),
+  isIndependentlyVerified: z.boolean().optional().default(false),
+  verificationEvidence: z.string().optional()
 });
 
 export const ResearchFactSchema = z.object({
@@ -23,7 +26,9 @@ export const ResearchFactSchema = z.object({
   yearOrEra: z.string().min(1),
   keyFigures: z.array(z.string()).min(1, 'Phải có ít nhất một nhân vật liên quan'),
   location: z.string().min(1, 'Địa danh lịch sử không được để trống'),
-  citations: z.array(HistoricalCitationSchema).min(1, 'Dữ kiện bắt buộc phải có ít nhất một nguồn trích dẫn kiểm chứng')
+  citations: z.array(HistoricalCitationSchema).min(1, 'Dữ kiện bắt buộc phải có ít nhất một nguồn trích dẫn kiểm chứng'),
+  isApproved: z.boolean().optional().default(false),
+  isMockSource: z.boolean().optional().default(false)
 });
 
 export const ResearchDossierSchema = z.object({
@@ -32,7 +37,8 @@ export const ResearchDossierSchema = z.object({
   summary: z.string().min(20, 'Tóm tắt sự kiện phải từ 20 ký tự'),
   facts: z.array(ResearchFactSchema).min(1, 'Bản nghiên cứu phải có ít nhất một dữ kiện đã kiểm chứng'),
   verifiedAt: z.string(),
-  isApproved: z.boolean().default(false)
+  isApproved: z.boolean().default(false),
+  isMockEngine: z.boolean().optional().default(false)
 });
 
 export const CameraMotionSchema = z.enum([
@@ -78,6 +84,12 @@ export const WordTimestampSchema = z.object({
   end: z.number().nonnegative()
 });
 
+export const SubtitleLayoutSpecsSchema = z.object({
+  bottomPx: z.number().default(280),
+  maxWordsPerChunk: z.number().default(6),
+  maxWidthPx: z.number().default(900)
+});
+
 export const RemotionScenePropsSchema = z.object({
   sceneNumber: z.number().int().positive(),
   visualUrl: z.string().min(1),
@@ -85,7 +97,8 @@ export const RemotionScenePropsSchema = z.object({
   durationInFrames: z.number().int().positive(),
   cameraMotion: CameraMotionSchema,
   subtitles: z.array(WordTimestampSchema),
-  citationBadge: z.string().optional()
+  citationBadge: z.string().optional(),
+  subtitleLayout: SubtitleLayoutSpecsSchema.optional()
 });
 
 export const VietSuReelPropsSchema = z.object({
@@ -114,6 +127,9 @@ export const QAReportSchema = z.object({
   timingMatchScore: z.number().min(0).max(100),
   spellingQualityScore: z.number().min(0).max(100),
   sourceCitationScore: z.number().min(0).max(100),
+  subtitleSyncScore: z.number().min(0).max(100).default(100),
   safeZoneCheckPassed: z.boolean(),
-  warnings: z.array(z.string())
+  isIndependentlyVerified: z.boolean().default(false),
+  warnings: z.array(z.string()),
+  detailedChecks: z.record(z.boolean()).default({})
 });

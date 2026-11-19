@@ -48,9 +48,16 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({ dossier }) => {
     <div className="space-y-6">
       {/* Dossier Overview */}
       <div className="bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-700/30 rounded-2xl p-6">
-        <div className="flex items-center gap-2.5 text-suvang-400 text-xs font-bold uppercase tracking-wider mb-2">
-          <ShieldCheck className="w-4 h-4" />
-          <span>Hồ Sơ Nghiên Cứu Thẩm Định Sử Học</span>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2.5 text-suvang-400 text-xs font-bold uppercase tracking-wider">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Hồ Sơ Nghiên Cứu Thẩm Định Sử Học</span>
+          </div>
+          {dossier.isMockEngine && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              Mock Engine (0đ)
+            </span>
+          )}
         </div>
         <h3 className="text-xl font-bold text-white font-serif mb-2">
           {dossier.topic}
@@ -58,6 +65,16 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({ dossier }) => {
         <p className="text-sm text-slate-300 leading-relaxed">
           {dossier.summary}
         </p>
+
+        {dossier.isMockEngine && (
+          <div className="mt-3 p-3 bg-amber-950/40 border border-amber-600/30 rounded-xl text-xs text-amber-200/90 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              <strong>Lưu ý xác minh:</strong> Dữ liệu sử liệu dưới đây được trích xuất từ Mock History Engine nội bộ nhằm mục đích chạy kiểm thử pipeline cục bộ mà không tốn phí API. Đây không phải chứng thực học thuật độc lập trực tiếp từ các thư viện lịch sử số.
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-amber-900/40 text-xs text-slate-400">
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-suvang-400" />
@@ -124,7 +141,14 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({ dossier }) => {
                       className="bg-slate-950/80 border border-amber-950/50 rounded-xl p-3 text-xs"
                     >
                       <div className="flex items-center justify-between gap-2 font-semibold text-slate-200 mb-1">
-                        <span>{cite.sourceTitle} — {cite.author}</span>
+                        <div className="flex items-center gap-2">
+                          <span>{cite.sourceTitle} — {cite.author}</span>
+                          {cite.isMockSource && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Mô phỏng Mock
+                            </span>
+                          )}
+                        </div>
                         <span className="text-slate-400 text-[11px] font-normal">{cite.volumeOrChapter}</span>
                       </div>
                       <blockquote className="text-slate-300 italic border-l-2 border-amber-600 pl-2.5 my-1.5">
