@@ -3,7 +3,9 @@
 > **Updated:** 2026-11-19
 > **Current Phase:** Phase 2 (Real AI Integration & Agent Memory)
 > **Branch:** `feat/phase2-agent-memory-and-real-ai` (based on hardened `feat/phase1-hardening-and-verification`)
-> **PR Reference:** PR #1 (Target: `main`, CI: Green 100%)
+> **PR References:** 
+> - PR #1 (`feat/phase1-hardening-and-verification` -> `main`): CI Green 100% (`44487394294`)
+> - PR #2 (`feat/phase2-agent-memory-and-real-ai` -> `main`): CI Green 100% (`44508576148`, `44508567543`)
 
 ---
 
