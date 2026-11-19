@@ -1,5 +1,5 @@
 import React from 'react';
-import { Series, Audio, AbsoluteFill } from 'remotion';
+import { Series, Sequence, Audio, AbsoluteFill } from 'remotion';
 import { VietSuReelProps } from '@vietsu/shared';
 import { KenBurnsScene } from './components/KenBurnsScene';
 import { KineticSubtitles } from './components/KineticSubtitles';
@@ -10,7 +10,9 @@ export const VietSuReel: React.FC<VietSuReelProps> = ({
   historicalEra,
   bgmUrl,
   bgmVolume = 0.25,
-  scenes
+  scenes,
+  showBranding = false,
+  showHistoricalBadge = false
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: '#090604' }}>
@@ -30,40 +32,71 @@ export const VietSuReel: React.FC<VietSuReelProps> = ({
             key={`scene-${scene.sceneNumber}`}
             durationInFrames={scene.durationInFrames}
           >
-            {/* 1. Visual with Ken Burns camera movement */}
-            <KenBurnsScene
-              visualUrl={scene.visualUrl}
-              motion={scene.cameraMotion}
+            {/* 1. Visual with Ken Burns camera movement (Single Shot or Multi-Shot) */}
+            {scene.visualShots && scene.visualShots.length > 0 ? (
+              scene.visualShots.reduce(
+                (acc: { elements: React.ReactNode[]; currentOffset: number }, shot, shotIdx) => {
+                  const shotStart = acc.currentOffset;
+                  acc.elements.push(
+                    <Sequence
+                      key={`shot-${scene.sceneNumber}-${shotIdx}`}
+                      from={shotStart}
+                      durationInFrames={shot.durationInFrames}
+                    >
+                      <KenBurnsScene
+                        visualUrl={shot.visualUrl}
+                        motion={shot.cameraMotion}
+                        transition={shot.transition}
+                      />
+                    </Sequence>
+                  );
+                  acc.currentOffset += shot.durationInFrames;
+                  return acc;
+                },
+                { elements: [], currentOffset: 0 }
+              ).elements
+            ) : (
+              <KenBurnsScene
+                visualUrl={scene.visualUrl}
+                motion={scene.cameraMotion}
+              />
+            )}
+
+            {/* 2. Top-left Historical Source Certification (Optional, default OFF for clean video) */}
+            {showHistoricalBadge && (
+              <HistoricalBadge
+                sourceText={scene.citationBadge || `${title} (${historicalEra})`}
+              />
+            )}
+
+            {/* 3. Top-right Studio Watermark (Optional, default OFF for clean video) */}
+            {showBranding && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '80px',
+                  right: '60px',
+                  padding: '8px 20px',
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  borderRadius: '20px',
+                  border: '1px solid rgba(255, 209, 102, 0.4)',
+                  fontFamily: "'Segoe UI', Roboto, sans-serif",
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#ffd166',
+                  letterSpacing: '1px',
+                  zIndex: 40
+                }}
+              >
+                VIỆT SỬ STUDIO
+              </div>
+            )}
+
+            {/* 4. Dynamic Kinetic Subtitles with Reels Safe-Zone layout */}
+            <KineticSubtitles
+              subtitles={scene.subtitles}
+              layout={scene.subtitleLayout}
             />
-
-            {/* 2. Top-left Historical Source Certification */}
-            <HistoricalBadge
-              sourceText={scene.citationBadge || `${title} (${historicalEra})`}
-            />
-
-            {/* 3. Top-right Studio Watermark */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '80px',
-                right: '60px',
-                padding: '8px 20px',
-                background: 'rgba(0, 0, 0, 0.6)',
-                borderRadius: '20px',
-                border: '1px solid rgba(255, 209, 102, 0.4)',
-                fontFamily: "'Segoe UI', Roboto, sans-serif",
-                fontSize: '16px',
-                fontWeight: 700,
-                color: '#ffd166',
-                letterSpacing: '1px',
-                zIndex: 40
-              }}
-            >
-              VIỆT SỬ STUDIO
-            </div>
-
-            {/* 4. Dynamic Kinetic Subtitles */}
-            <KineticSubtitles subtitles={scene.subtitles} />
 
             {/* 5. Voiceover Audio */}
             {scene.audioUrl && (

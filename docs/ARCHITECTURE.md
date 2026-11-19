@@ -212,3 +212,23 @@ Mỗi interface đều có:
   - Backend gọi CLI / Node Script chạy `@remotion/renderer`.
   - Remotion render từng frame qua Headless Chromium và ghép với FFmpeg tạo video MP4 H.264/AAC.
   - Lưu file trực tiếp vào thư mục `storage/videos/{projectId}_{timestamp}.mp4`.
+
+---
+
+## 8. Định hướng Mở rộng SaaS & Xử lý Phân tán (SaaS Architecture & Distributed Workers)
+
+### 8.1. Đánh giá Cơ chế Khóa Concurrency Hiện tại
+Trong giai đoạn MVP và Single-Node, hệ thống áp dụng cơ chế khóa đồng bộ trong bộ nhớ (`projectLocks: Set<string>`) kết hợp trạng thái cơ sở dữ liệu để bảo vệ chống race condition trong tiến trình Node.js đơn.
+* **Ưu điểm**: Triệt tiêu 100% rủi ro TOCTOU tại tầng Controller, không phụ thuộc vào hạ tầng bên ngoài, độ trễ 0ms.
+* **Giới hạn khi mở rộng**: Khi ứng dụng mở rộng thành hệ thống phân tán gồm nhiều Render Worker hoặc nhiều Node.js Web Pods sau Load Balancer, `Set<string>` cục bộ sẽ không chia sẻ trạng thái giữa các tiến trình khác nhau.
+
+### 8.2. Lộ trình Nâng cấp Sang SaaS Production
+1. **Khóa phân tán (Distributed Locking)**:
+   - Thay thế `Set<string>` bằng **Redis Redlock** hoặc **PostgreSQL Transaction-level Advisory Locks** (`SELECT pg_advisory_xact_lock(hashtext(projectId))`).
+2. **Hàng đợi tác vụ (Distributed Job Queue)**:
+   - Tách rời Orchestrator và Worker thông qua hàng đợi **BullMQ (Redis)** hoặc **Temporal/Kafka**.
+   - Render Worker được cô lập trong các container chuyên dụng có GPU/CPU tối ưu cho FFmpeg & Remotion.
+3. **Lưu trữ đám mây (Object Storage)**:
+   - Đổi `StorageService` từ local filesystem sang S3 API (AWS S3, Cloudflare R2, MinIO).
+4. **Mô hình Đa Người Dùng (Multi-Tenancy)**:
+   - Mở rộng Prisma schema với các thực thể `User`, `Workspace`, `ApiKey`, `CreditLedger` và `Subscription`.

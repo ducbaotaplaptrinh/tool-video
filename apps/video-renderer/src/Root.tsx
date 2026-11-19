@@ -12,6 +12,8 @@ export const defaultReelProps: VietSuReelProps = {
   width: 1080,
   height: 1920,
   bgmVolume: 0.25,
+  showBranding: false,
+  showHistoricalBadge: false,
   scenes: [
     {
       sceneNumber: 1,

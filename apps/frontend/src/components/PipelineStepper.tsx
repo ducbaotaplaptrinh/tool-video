@@ -19,6 +19,7 @@ interface PipelineStepperProps {
   onApproveScript: () => void;
   onStartRender: () => void;
   onStartPipeline: () => void;
+  onRetry?: () => void;
   loading: boolean;
 }
 
@@ -39,6 +40,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
   onApproveScript,
   onStartRender,
   onStartPipeline,
+  onRetry,
   loading
 }) => {
   const getStepState = (index: number) => {
@@ -126,6 +128,17 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <CheckCircle className="w-4 h-4" />
               <span>Đã Xuất MP4 Thành Công</span>
             </div>
+          )}
+
+          {status === 'FAILED' && onRetry && (
+            <button
+              onClick={onRetry}
+              disabled={loading}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 text-white font-bold text-xs shadow-lg shadow-rose-600/20 hover:scale-[1.02] transition-all"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Thử Lại Từ Bước Thất Bại (Retry)</span>
+            </button>
           )}
         </div>
       </div>

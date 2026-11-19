@@ -2,9 +2,9 @@ import { ResearchDossier, ResearchDossierSchema } from '@vietsu/shared';
 import { ProviderRegistry } from '@vietsu/ai-providers';
 
 export class ResearchAgent {
-  async execute(topic: string, historicalEra: string): Promise<ResearchDossier> {
+  async execute(topic: string, historicalEra: string, providerMode?: 'live' | 'mock'): Promise<ResearchDossier> {
     const registry = ProviderRegistry.getInstance();
-    const llm = registry.getLLM();
+    const llm = registry.getLLM(providerMode || 'mock');
 
     const rawDossier = await llm.researchHistory(topic, historicalEra);
 

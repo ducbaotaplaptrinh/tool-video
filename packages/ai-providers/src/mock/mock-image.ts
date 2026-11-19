@@ -23,6 +23,18 @@ export class MockImageProvider implements IImageProvider {
 
     const palette = palettes[(options.sceneNumber - 1) % palettes.length];
 
+    const escapeXml = (str: string) => {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
+    const eraText = escapeXml(options.historicalEra.toUpperCase());
+    const topicText = escapeXml(options.topicTitle.length > 30 ? options.topicTitle.substring(0, 30) + '...' : options.topicTitle);
+
     // Generate rich 9:16 Historical SVG Artwork
     const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
@@ -59,53 +71,28 @@ export class MockImageProvider implements IImageProvider {
           fill="${palette.accent}" fill-opacity="0.15" stroke="${palette.accent}" stroke-width="2"/>
   </g>
 
-  <!-- Historical Era Banner -->
-  <rect x="140" y="240" width="${width - 280}" height="60" rx="30" fill="${palette.secondary}" fill-opacity="0.8"/>
-  <text x="${width / 2}" y="278" font-family="'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="3">
-    ${options.historicalEra.toUpperCase()}
-  </text>
+  <!-- Subject Graphic Box & Ancient Fortress/Naval Silhouette -->
+  <rect x="80" y="320" width="${width - 160}" height="1200" rx="24" fill="#000000" fill-opacity="0.35" stroke="${palette.accent}" stroke-opacity="0.3" stroke-width="2"/>
 
-  <!-- Scene Badge -->
-  <circle cx="200" cy="400" r="45" fill="${palette.accent}"/>
-  <text x="200" y="412" font-family="'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="bold" fill="#1b130c" text-anchor="middle">
-    0${options.sceneNumber}
-  </text>
-
-  <!-- Subject Graphic Box -->
-  <rect x="100" y="480" width="${width - 200}" height="760" rx="20" fill="#000000" fill-opacity="0.4" stroke="${palette.accent}" stroke-opacity="0.4" stroke-width="3"/>
-
-  <!-- Historical Icon Placeholder -->
-  <g transform="translate(${width / 2}, 820)" fill="${palette.accent}">
+  <!-- Historical Silhouette (Citadel & War Fleet) -->
+  <g transform="translate(${width / 2}, 900)" fill="${palette.accent}">
     <!-- Ancient War Junk Ship / Fortress silhouette -->
-    <path d="M -180 80 Q 0 160 180 80 L 140 -20 Q 0 0 -140 -20 Z" fill="${palette.accent}" fill-opacity="0.7"/>
-    <path d="M -40 -20 L -40 -160 L 40 -160 L 40 -20 Z" fill="${palette.accent}" fill-opacity="0.5"/>
-    <polygon points="0,-180 80,-110 0,-110" fill="${palette.secondary}" fill-opacity="0.9"/>
-    <polygon points="0,-100 120,-30 0,-30" fill="${palette.secondary}" fill-opacity="0.9"/>
+    <path d="M -260 120 Q 0 240 260 120 L 200 -30 Q 0 0 -200 -30 Z" fill="${palette.accent}" fill-opacity="0.75"/>
+    <path d="M -60 -30 L -60 -240 L 60 -240 L 60 -30 Z" fill="${palette.accent}" fill-opacity="0.55"/>
+    <polygon points="0,-270 120,-160 0,-160" fill="${palette.secondary}" fill-opacity="0.9"/>
+    <polygon points="0,-150 180,-40 0,-40" fill="${palette.secondary}" fill-opacity="0.9"/>
+    <!-- Spear and Banner poles -->
+    <line x1="-140" y1="60" x2="-140" y2="-120" stroke="${palette.accent}" stroke-width="4"/>
+    <line x1="140" y1="60" x2="140" y2="-120" stroke="${palette.accent}" stroke-width="4"/>
+    <polygon points="-140,-120 -80,-90 -140,-60" fill="${palette.secondary}" fill-opacity="0.8"/>
+    <polygon points="140,-120 200,-90 140,-60" fill="${palette.secondary}" fill-opacity="0.8"/>
   </g>
-
-  <!-- Title / Topic text inside graphic -->
-  <text x="${width / 2}" y="1120" font-family="'Segoe UI', Roboto, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">
-    ${options.topicTitle.length > 30 ? options.topicTitle.substring(0, 30) + '...' : options.topicTitle}
-  </text>
-
-  <text x="${width / 2}" y="1180" font-family="'Segoe UI', Roboto, sans-serif" font-size="26" fill="${palette.accent}" text-anchor="middle" font-style="italic">
-    Phân cảnh ${options.sceneNumber} • Minh họa Sử liệu 9:16
-  </text>
 
   <!-- Decorative Corner Accents -->
   <path d="M 60 120 L 120 120 M 60 120 L 60 180" stroke="${palette.accent}" stroke-width="4" fill="none"/>
   <path d="M ${width - 60} 120 L ${width - 120} 120 M ${width - 60} 120 L ${width - 60} 180" stroke="${palette.accent}" stroke-width="4" fill="none"/>
   <path d="M 60 ${height - 180} L 120 ${height - 180} M 60 ${height - 180} L 60 ${height - 240}" stroke="${palette.accent}" stroke-width="4" fill="none"/>
   <path d="M ${width - 60} ${height - 180} L ${width - 120} ${height - 180} M ${width - 60} ${height - 180} L ${width - 60} ${height - 240}" stroke="${palette.accent}" stroke-width="4" fill="none"/>
-
-  <!-- Prompt note at bottom watermark -->
-  <rect x="80" y="${height - 360}" width="${width - 160}" height="100" rx="12" fill="#000000" fill-opacity="0.6"/>
-  <text x="${width / 2}" y="${height - 325}" font-family="'Segoe UI', Roboto, sans-serif" font-size="22" fill="#e2e8f0" text-anchor="middle">
-    VIỆT SỬ AI STUDIO • BẢN ĐỒ &amp; HÌNH ẢNH LỊCH SỬ
-  </text>
-  <text x="${width / 2}" y="${height - 285}" font-family="'Segoe UI', Roboto, sans-serif" font-size="18" fill="#94a3b8" text-anchor="middle">
-    Nguồn: Khảo chứng Sử học Việt Nam
-  </text>
 </svg>`;
 
     fs.mkdirSync(options.outputDir, { recursive: true });

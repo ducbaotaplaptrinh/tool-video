@@ -12,7 +12,7 @@ export interface ILLMProvider {
   name: string;
   isMock: boolean;
   researchHistory(topic: string, historicalEra: string): Promise<ResearchDossier>;
-  generateScript(dossier: ResearchDossier): Promise<ScriptDocument>;
+  generateScript(dossier: ResearchDossier, options?: { targetDurationSec?: number }): Promise<ScriptDocument>;
   estimateCost(units: number, service: ServiceType): CostRecord;
 }
 
@@ -37,7 +37,9 @@ export interface TTSOptions {
   sceneNumber: number;
   outputDir: string;
   voiceGender?: 'MALE' | 'FEMALE';
-  speechRate?: number;
+  voiceName?: string;
+  speechRate?: string | number;
+  pitch?: string;
 }
 
 export interface ITTSProvider {

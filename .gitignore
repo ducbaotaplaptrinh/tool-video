@@ -39,6 +39,12 @@ pnpm-debug.log*
 lerna-debug.log*
 *.log
 
+# Graphify cache
+graphify-out/cache/
+graphify-out/*.cache
+graphify-out/*.tmp
+graphify-out/*.sqlite*
+
 # OS generated files
 .DS_Store
 Thumbs.db

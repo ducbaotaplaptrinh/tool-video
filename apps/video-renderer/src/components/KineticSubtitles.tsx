@@ -1,12 +1,13 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
-import { WordTimestamp } from '@vietsu/shared';
+import { WordTimestamp, SubtitleLayoutSpecs } from '@vietsu/shared';
 
 interface KineticSubtitlesProps {
   subtitles: WordTimestamp[];
+  layout?: SubtitleLayoutSpecs;
 }
 
-export const KineticSubtitles: React.FC<KineticSubtitlesProps> = ({ subtitles }) => {
+export const KineticSubtitles: React.FC<KineticSubtitlesProps> = ({ subtitles, layout }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTimeSec = frame / fps;
@@ -28,20 +29,23 @@ export const KineticSubtitles: React.FC<KineticSubtitlesProps> = ({ subtitles })
     }
   }
 
-  // Group subtitles into display chunks of ~5-7 words for high readability
-  const CHUNK_SIZE = 6;
+  // Group subtitles into display chunks for high readability and Reels safe zone
+  const CHUNK_SIZE = layout?.maxWordsPerChunk || 6;
   const currentChunkIndex = Math.max(0, Math.floor(Math.max(0, activeIndex) / CHUNK_SIZE));
   const chunkStart = currentChunkIndex * CHUNK_SIZE;
   const chunkWords = subtitles.slice(chunkStart, chunkStart + CHUNK_SIZE);
+
+  const bottomPx = layout?.bottomPx ?? 280;
+  const maxWidthPx = layout?.maxWidthPx ?? 900;
 
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: '240px', // Facebook Reels Safe Zone
+        bottom: `${bottomPx}px`, // Facebook Reels Safe Zone (Default >= 260px)
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '900px',
+        width: `${maxWidthPx}px`,
         textAlign: 'center',
         zIndex: 50,
         pointerEvents: 'none'
