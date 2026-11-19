@@ -36,6 +36,9 @@ jobs:
       - name: Install Monorepo Dependencies
         run: npm install
 
+      - name: Build Shared & AI Providers Packages
+        run: npm run build:packages
+
       - name: Generate Prisma Client & Push Database Schema
         run: |
           cd apps/backend
