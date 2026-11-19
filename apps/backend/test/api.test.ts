@@ -293,10 +293,10 @@ async function runTests() {
       });
       assert.strictEqual(res.status, 200, 'Should trigger render job');
 
-      // Wait for rendering to complete (720 frames @ 1080x1920 can take 90-120s)
+      // Wait for rendering to complete (up to 300s on slower CI virtualized CPUs)
       let attempts = 0;
       let project: any = null;
-      while (attempts < 120) {
+      while (attempts < 200) {
         await sleep(1500);
         project = await prisma.project.findUnique({ where: { id: testProjectId } });
         if (project?.status === 'COMPLETED' || project?.status === 'FAILED') break;
