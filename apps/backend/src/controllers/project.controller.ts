@@ -60,13 +60,22 @@ export class ProjectController {
 
       // Parse JSON fields
       const isResearchApproved = project.researchItems.length > 0 && project.researchItems.every(r => r.isApproved);
+      const hasMockSource = project.researchItems.some(item => {
+        try {
+          const cites = JSON.parse(item.citations || '[]');
+          return cites.some((c: any) => c.isMockSource === true);
+        } catch {
+          return true;
+        }
+      });
+
       const researchDossier = project.researchItems.length > 0 ? {
         topic: project.title,
         historicalEra: project.historicalEra,
         summary: project.description || project.title,
         verifiedAt: project.researchItems[0].createdAt.toISOString(),
         isApproved: isResearchApproved,
-        isMockEngine: true,
+        isMockEngine: hasMockSource,
         facts: project.researchItems.map(item => ({
           id: item.id,
           category: item.category as any,
@@ -156,7 +165,8 @@ export class ProjectController {
           historicalEra: parsed.historicalEra,
           targetDurationSec: parsed.targetDurationSec,
           aspectRatio: '9:16',
-          status: 'DRAFT'
+          status: 'DRAFT',
+          useMockProvider: parsed.useMockProvider !== undefined ? parsed.useMockProvider : true
         }
       });
 

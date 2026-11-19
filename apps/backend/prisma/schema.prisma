@@ -15,6 +15,7 @@ model Project {
   aspectRatio       String         @default("9:16")
   targetDurationSec Int            @default(45)
   status            String         @default("DRAFT")
+  useMockProvider   Boolean        @default(true)
   renderedVideoUrl  String?
   qaReport          String?
   createdAt         DateTime       @default(now())

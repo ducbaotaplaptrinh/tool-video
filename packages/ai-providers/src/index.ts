@@ -4,4 +4,8 @@ export * from './mock/mock-llm.js';
 export * from './mock/mock-image.js';
 export * from './mock/mock-tts.js';
 export * from './mock/mock-video.js';
+export * from './live/wikipedia-researcher.js';
+export * from './live/live-llm.js';
+export * from './live/pollinations-image.js';
+export * from './live/edge-tts.js';
 export * from './registry.js';

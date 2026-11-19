@@ -77,7 +77,8 @@ async function main() {
 
       if (fs.existsSync(absPath)) {
         const audioBuf = fs.readFileSync(absPath);
-        audioUrl = `data:audio/wav;base64,${audioBuf.toString('base64')}`;
+        const mime = absPath.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
+        audioUrl = `data:${mime};base64,${audioBuf.toString('base64')}`;
       }
     }
 

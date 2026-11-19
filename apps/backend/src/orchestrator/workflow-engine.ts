@@ -136,6 +136,9 @@ export class WorkflowEngine {
         throw new Error(`Không thể bắt đầu nghiên cứu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là DRAFT hoặc FAILED.`);
       }
 
+      // Configure provider mode (mock vs live)
+      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
+
       await this.checkConcurrencyLock(projectId);
 
       const job = await this.createJob(projectId, 'RESEARCH');
@@ -220,6 +223,9 @@ export class WorkflowEngine {
       if (project.status !== 'RESEARCH_PENDING_APPROVAL') {
         throw new Error(`Không thể duyệt sử liệu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là RESEARCH_PENDING_APPROVAL.`);
       }
+
+      // Configure provider mode (mock vs live)
+      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
 
       await this.checkConcurrencyLock(projectId);
 
@@ -356,6 +362,9 @@ export class WorkflowEngine {
         throw new Error(`Không thể duyệt kịch bản khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là SCRIPT_PENDING_APPROVAL.`);
       }
 
+      // Configure provider mode (mock vs live)
+      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
+
       await this.checkConcurrencyLock(projectId);
 
       // Synchronize isApproved state in DB
@@ -398,6 +407,11 @@ export class WorkflowEngine {
           const visual = visuals.find(v => v.sceneNumber === sc.sceneNumber) || visuals[i];
           const audio = audios.find(a => a.sceneNumber === sc.sceneNumber) || audios[i];
 
+          const imgMime = visual.url.endsWith('.jpg') || visual.url.endsWith('.jpeg')
+            ? 'image/jpeg'
+            : (visual.url.endsWith('.png') ? 'image/png' : 'image/svg+xml');
+          const audioMime = audio.audioUrl.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
+
           await prisma.mediaAsset.create({
             data: {
               projectId,
@@ -405,7 +419,7 @@ export class WorkflowEngine {
               assetType: 'IMAGE',
               url: visual.url,
               localPath: visual.localPath,
-              mimeType: 'image/svg+xml'
+              mimeType: imgMime
             }
           });
 
@@ -416,7 +430,7 @@ export class WorkflowEngine {
               assetType: 'AUDIO',
               url: audio.audioUrl,
               localPath: audio.localPath,
-              mimeType: 'audio/wav'
+              mimeType: audioMime
             }
           });
 
@@ -496,13 +510,22 @@ export class WorkflowEngine {
 
       await this.updateJobLog(job.id, 'Editor Agent đang lắp ráp Timeline và phụ đề động...', 30);
 
+      const hasMockCitation = project.researchItems.some(item => {
+        try {
+          const cites = JSON.parse(item.citations || '[]');
+          return cites.some((c: any) => c.isMockSource === true);
+        } catch {
+          return true;
+        }
+      });
+
       const dossier: ResearchDossier = {
         topic: project.title,
         historicalEra: project.historicalEra,
         summary: project.description || project.title,
         verifiedAt: new Date().toISOString(),
         isApproved: true,
-        isMockEngine: true,
+        isMockEngine: hasMockCitation,
         facts: project.researchItems.map(item => ({
           id: item.id,
           category: item.category as any,
