@@ -16,6 +16,7 @@ router.post('/:id/pipeline/start', PipelineController.start);
 router.post('/:id/pipeline/approve-research', PipelineController.approveResearch);
 router.post('/:id/pipeline/approve-script', PipelineController.approveScript);
 router.post('/:id/pipeline/rerun-step', PipelineController.rerunStep);
+router.post('/:id/pipeline/retry', PipelineController.retry);
 
 // Render
 router.post('/:id/render', RenderController.render);

@@ -5,6 +5,7 @@ import path from 'path';
 import projectRoutes from './routes/project.routes.js';
 import systemRoutes from './routes/system.routes.js';
 import { StorageService } from './storage/storage.service.js';
+import { JobRecoveryService } from './orchestrator/job-recovery.service.js';
 
 dotenv.config();
 
@@ -35,11 +36,17 @@ app.get('/api', (req, res) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => {
-    console.log(`[VietSu AI Studio Backend] Server listening at http://localhost:${port}`);
-    console.log(`[Storage] Assets mapped from: ${storage.getBaseDir()}`);
-  });
+const isMainModule = typeof require !== 'undefined' ? require.main === module : process.env.NODE_ENV !== 'test';
+
+if (isMainModule && process.env.NODE_ENV !== 'test') {
+  JobRecoveryService.recoverDanglingJobs()
+    .catch((err) => console.error('[JobRecoveryService] Error during startup recovery:', err))
+    .finally(() => {
+      app.listen(port, () => {
+        console.log(`[VietSu AI Studio Backend] Server listening at http://localhost:${port}`);
+        console.log(`[Storage] Assets mapped from: ${storage.getBaseDir()}`);
+      });
+    });
 }
 
 export default app;

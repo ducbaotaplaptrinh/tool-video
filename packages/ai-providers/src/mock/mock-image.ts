@@ -23,6 +23,18 @@ export class MockImageProvider implements IImageProvider {
 
     const palette = palettes[(options.sceneNumber - 1) % palettes.length];
 
+    const escapeXml = (str: string) => {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
+    const eraText = escapeXml(options.historicalEra.toUpperCase());
+    const topicText = escapeXml(options.topicTitle.length > 30 ? options.topicTitle.substring(0, 30) + '...' : options.topicTitle);
+
     // Generate rich 9:16 Historical SVG Artwork
     const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
@@ -62,7 +74,7 @@ export class MockImageProvider implements IImageProvider {
   <!-- Historical Era Banner -->
   <rect x="140" y="240" width="${width - 280}" height="60" rx="30" fill="${palette.secondary}" fill-opacity="0.8"/>
   <text x="${width / 2}" y="278" font-family="'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="3">
-    ${options.historicalEra.toUpperCase()}
+    ${eraText}
   </text>
 
   <!-- Scene Badge -->
@@ -85,7 +97,7 @@ export class MockImageProvider implements IImageProvider {
 
   <!-- Title / Topic text inside graphic -->
   <text x="${width / 2}" y="1120" font-family="'Segoe UI', Roboto, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">
-    ${options.topicTitle.length > 30 ? options.topicTitle.substring(0, 30) + '...' : options.topicTitle}
+    ${topicText}
   </text>
 
   <text x="${width / 2}" y="1180" font-family="'Segoe UI', Roboto, sans-serif" font-size="26" fill="${palette.accent}" text-anchor="middle" font-style="italic">

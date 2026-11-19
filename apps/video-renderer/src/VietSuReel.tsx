@@ -62,8 +62,11 @@ export const VietSuReel: React.FC<VietSuReelProps> = ({
               VIỆT SỬ STUDIO
             </div>
 
-            {/* 4. Dynamic Kinetic Subtitles */}
-            <KineticSubtitles subtitles={scene.subtitles} />
+            {/* 4. Dynamic Kinetic Subtitles with Reels Safe-Zone layout */}
+            <KineticSubtitles
+              subtitles={scene.subtitles}
+              layout={scene.subtitleLayout}
+            />
 
             {/* 5. Voiceover Audio */}
             {scene.audioUrl && (

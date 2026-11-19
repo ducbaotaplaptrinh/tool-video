@@ -32,7 +32,7 @@ async function main() {
   }
 
   // Determine storage base directory
-  const storageBase = path.resolve(process.cwd(), '../../storage');
+  const storageBase = path.resolve(__dirname, '../../../storage');
   if (!outputPath) {
     outputPath = path.join(storageBase, 'videos', `test_render_sample_${Date.now()}.mp4`);
   }
@@ -40,24 +40,45 @@ async function main() {
   // Ensure output directory exists
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-  // Map local /storage/... URLs to absolute file:// URLs for headless Chromium
+  // Map local /storage/... URLs to data URIs for headless Chromium
   const mappedScenes = reelProps.scenes.map(s => {
     let visualUrl = s.visualUrl;
     let audioUrl = s.audioUrl;
 
-    if (visualUrl && visualUrl.startsWith('/storage/')) {
-      const rel = visualUrl.replace('/storage/', '');
-      const absPath = path.join(storageBase, rel);
+    if (visualUrl) {
+      let absPath = visualUrl;
+      if (visualUrl.startsWith('/storage/')) {
+        const rel = visualUrl.replace('/storage/', '');
+        absPath = path.join(storageBase, rel);
+      } else if (visualUrl.startsWith('file:///')) {
+        absPath = visualUrl.replace('file:///', '');
+      }
+
       if (fs.existsSync(absPath)) {
-        visualUrl = `file:///${absPath.replace(/\\/g, '/')}`;
+        const buf = fs.readFileSync(absPath);
+        if (absPath.endsWith('.svg')) {
+          visualUrl = `data:image/svg+xml;base64,${buf.toString('base64')}`;
+        } else if (absPath.endsWith('.png')) {
+          visualUrl = `data:image/png;base64,${buf.toString('base64')}`;
+        } else if (absPath.endsWith('.jpg') || absPath.endsWith('.jpeg')) {
+          visualUrl = `data:image/jpeg;base64,${buf.toString('base64')}`;
+        }
       }
     }
 
-    if (audioUrl && audioUrl.startsWith('/storage/')) {
-      const rel = audioUrl.replace('/storage/', '');
-      const absPath = path.join(storageBase, rel);
+    if (audioUrl) {
+      let absPath = audioUrl;
+      if (audioUrl.startsWith('/storage/')) {
+        const rel = audioUrl.replace('/storage/', '');
+        absPath = path.join(storageBase, rel);
+      } else if (audioUrl.startsWith('file:///')) {
+        absPath = audioUrl.replace('file:///', '');
+      }
+
       if (fs.existsSync(absPath)) {
-        audioUrl = `file:///${absPath.replace(/\\/g, '/')}`;
+        const audioBuf = fs.readFileSync(absPath);
+        const mime = absPath.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
+        audioUrl = `data:${mime};base64,${audioBuf.toString('base64')}`;
       }
     }
 

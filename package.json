@@ -8,7 +8,8 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build:packages": "npm run build --workspace=@vietsu/shared && npm run build --workspace=@vietsu/ai-providers",
+    "build": "npm run build --workspace=@vietsu/shared && npm run build --workspace=@vietsu/ai-providers && npm run build --workspace=@vietsu/video-renderer && npm run build --workspace=@vietsu/backend && npm run build --workspace=@vietsu/frontend",
     "dev": "npm run dev --workspaces --if-present",
     "dev:backend": "npm run dev --workspace=apps/backend",
     "dev:frontend": "npm run dev --workspace=apps/frontend",

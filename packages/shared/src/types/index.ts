@@ -10,6 +10,9 @@ export interface HistoricalCitation {
   pageOrSection?: string;
   quoteExcerpt: string;
   verificationUrl?: string;
+  isMockSource?: boolean;
+  isIndependentlyVerified?: boolean;
+  verificationEvidence?: string;
 }
 
 export interface ResearchFact {
@@ -20,6 +23,8 @@ export interface ResearchFact {
   keyFigures: string[];
   location: string;
   citations: HistoricalCitation[];
+  isApproved?: boolean;
+  isMockSource?: boolean;
 }
 
 export interface ResearchDossier {
@@ -29,6 +34,7 @@ export interface ResearchDossier {
   facts: ResearchFact[];
   verifiedAt: string;
   isApproved: boolean;
+  isMockEngine?: boolean;
 }
 
 export type CameraMotion = 'ZOOM_IN' | 'ZOOM_OUT' | 'PAN_LEFT' | 'PAN_RIGHT' | 'STATIC';
@@ -85,6 +91,12 @@ export interface VisualAsset {
   cameraMotion: CameraMotion;
 }
 
+export interface SubtitleLayoutSpecs {
+  bottomPx: number; // Facebook Reels safe-zone: >= 260px and <= 600px
+  maxWordsPerChunk: number; // <= 8 to prevent multi-line vertical overflow
+  maxWidthPx: number; // <= 900px
+}
+
 export interface RemotionSceneProps {
   sceneNumber: number;
   visualUrl: string;
@@ -93,6 +105,7 @@ export interface RemotionSceneProps {
   cameraMotion: CameraMotion;
   subtitles: WordTimestamp[];
   citationBadge?: string;
+  subtitleLayout?: SubtitleLayoutSpecs;
 }
 
 export interface VietSuReelProps {
@@ -149,6 +162,7 @@ export interface JobRecord {
   progressPercent: number;
   logs: string[];
   error?: string;
+  retryCount?: number;
   startedAt?: string;
   completedAt?: string;
 }
@@ -159,8 +173,11 @@ export interface QAReport {
   timingMatchScore: number;
   spellingQualityScore: number;
   sourceCitationScore: number;
+  subtitleSyncScore: number;
   safeZoneCheckPassed: boolean;
+  isIndependentlyVerified: boolean;
   warnings: string[];
+  detailedChecks: Record<string, boolean>;
 }
 
 export interface ProjectDetail {

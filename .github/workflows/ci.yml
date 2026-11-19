@@ -1,0 +1,55 @@
+name: VietSu AI Studio CI
+
+on:
+  push:
+    branches: [ main, 'feat/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./dev.db"
+      NODE_ENV: "test"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2 || true
+
+      - name: Prepare Environment Files
+        run: |
+          cp apps/backend/.env.example apps/backend/.env
+
+      - name: Install Monorepo Dependencies
+        run: npm install
+
+      - name: Build Shared & AI Providers Packages
+        run: npm run build:packages
+
+      - name: Generate Prisma Client & Push Database Schema
+        run: |
+          cd apps/backend
+          npx prisma db push --skip-generate
+          npx prisma generate
+          cd ../..
+
+      - name: Monorepo Clean Build & TypeScript Check
+        run: npm run build
+
+      - name: Run Backend & Video Verification Test Suite
+        run: |
+          cd apps/backend
+          npm run test

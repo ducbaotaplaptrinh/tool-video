@@ -90,6 +90,18 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                     </div>
                   </div>
 
+                  {qaReport.subtitleSyncScore !== undefined && (
+                    <div>
+                      <div className="flex justify-between text-slate-300 mb-1">
+                        <span>Đồng bộ phụ đề và giọng đọc:</span>
+                        <strong className="text-emerald-400">{qaReport.subtitleSyncScore}%</strong>
+                      </div>
+                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full" style={{ width: `${qaReport.subtitleSyncScore}%` }} />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <div className="flex justify-between text-slate-300 mb-1">
                       <span>Chất lượng văn phong &amp; lời thoại:</span>
@@ -112,11 +124,40 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
                   <div className="pt-2 flex items-center justify-between border-t border-slate-800 text-slate-300">
                     <span>Vùng an toàn Safe-Zone Facebook Reels:</span>
-                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                      <CheckCircle2 className="w-4 h-4" /> Đạt chuẩn
-                    </span>
+                    {qaReport.safeZoneCheckPassed ? (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-4 h-4" /> Đạt chuẩn (Cách đáy ≥ 260px)
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-rose-400 font-bold">
+                        <AlertTriangle className="w-4 h-4" /> Cảnh báo lệch Safe-Zone
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-800 text-slate-300">
+                    <span>Thẩm định sử học độc lập:</span>
+                    {qaReport.isIndependentlyVerified ? (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-4 h-4" /> Đã kiểm định độc lập
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-400 font-bold">
+                        <AlertTriangle className="w-4 h-4" /> Chưa kiểm định độc lập
+                      </span>
+                    )}
                   </div>
                 </div>
+
+                {qaReport.isIndependentlyVerified === false && (
+                  <div className="mt-3 p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200/90 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-amber-300">Lưu ý tính chuẩn xác sử liệu:</strong>
+                      Dữ liệu lịch sử hiện tại chưa qua thẩm định độc lập bởi hội đồng chuyên gia học thuật hoặc văn bản lưu trữ chuẩn quốc gia.
+                    </div>
+                  </div>
+                )}
 
                 {qaReport.warnings.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-800 space-y-1">
