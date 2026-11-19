@@ -62,16 +62,18 @@ export class WikipediaHistoricalResearcher {
       // Extract main confirmed fact from intro
       const introSummary = paragraphs[0] || `${topic} là một dấu mốc lịch sử quan trọng thuộc ${historicalEra}.`;
       
+      // Wikipedia is a collaborative encyclopedia (secondary source), NOT an independently verified primary historical chronicle
       const primaryCitation: HistoricalCitation = {
         id: `cite_wiki_${Date.now()}_1`,
         sourceTitle: `Bách khoa toàn thư mở Wikipedia (tiếng Việt) - Bài viết: "${articleTitle}"`,
-        author: 'Hội đồng biên tập Wikipedia tiếng Việt & Các nguồn sử học đối chiếu',
+        author: 'Cộng đồng biên tập Wikipedia tiếng Việt',
         volumeOrChapter: 'Mục Tổng quan và Diễn biến lịch sử',
         quoteExcerpt: introSummary.slice(0, 200),
         verificationUrl,
         isMockSource: false,
-        isIndependentlyVerified: true,
-        verificationEvidence: `Dữ liệu lịch sử được trích xuất trực tiếp từ ấn bản bách khoa điện tử tiếng Việt "${articleTitle}" có trích dẫn thư mục khảo cứu.`
+        isIndependentlyVerified: false, // Explicitly false: Wikipedia is secondary/open, not independently attested primary chronicle
+        verificationLevel: 'WIKIPEDIA_SECONDARY_SOURCE',
+        verificationEvidence: `Dữ liệu lịch sử được trích xuất từ ấn bản bách khoa điện tử tiếng Việt "${articleTitle}". Cần đối chiếu với chính sử độc lập để đạt chuẩn kiểm chứng hàn lâm.`
       };
 
       facts.push({
@@ -102,14 +104,15 @@ export class WikipediaHistoricalResearcher {
             citations: [
               {
                 id: `cite_wiki_${Date.now()}_${i + 1}`,
-                sourceTitle: `Bách khoa toàn thư mở Wikipedia (tiếng Việt) - "${articleTitle}"`,
-                author: 'Sử liệu lưu trữ đối chiếu',
-                volumeOrChapter: `Phân đoạn tư liệu số ${i + 1}`,
+                sourceTitle: `Wikipedia tiếng Việt - "${articleTitle}"`,
+                author: 'Cộng đồng biên tập Wikipedia tiếng Việt',
+                volumeOrChapter: `Đoạn tư liệu ${i + 1}`,
                 quoteExcerpt: para.slice(0, 180),
                 verificationUrl,
                 isMockSource: false,
-                isIndependentlyVerified: true,
-                verificationEvidence: `Tư liệu số hóa có thể kiểm chứng tại ${verificationUrl}`
+                isIndependentlyVerified: false,
+                verificationLevel: 'WIKIPEDIA_SECONDARY_SOURCE',
+                verificationEvidence: `Trích xuất từ mục diễn biến "${articleTitle}" trên Wikipedia tiếng Việt.`
               }
             ],
             isApproved: false,
@@ -120,15 +123,15 @@ export class WikipediaHistoricalResearcher {
 
       return {
         topic,
-        historicalEra,
-        summary: introSummary.slice(0, 400),
+        historicalEra: historicalEra || 'Lịch sử Việt Nam',
+        summary: introSummary.slice(0, 300),
         facts,
         verifiedAt: new Date().toISOString(),
         isApproved: false,
         isMockEngine: false
       };
     } catch (err: any) {
-      console.warn(`[WikipediaResearcher] Tra cứu trực tuyến thất bại (${err.message}). Chuyển sang cơ chế dự phòng chuẩn.`);
+      console.warn(`[WikipediaResearcher] Tra cứu trực tuyến thất bại (${err.message}). Chuyển sang hồ sơ dữ liệu chờ người dùng xác minh.`);
       return this.createFallbackDossier(topic, historicalEra, err.message);
     }
   }
@@ -152,33 +155,38 @@ export class WikipediaHistoricalResearcher {
     return found || 'Địa danh lịch sử Việt Nam';
   }
 
+  /**
+   * Tạo hồ sơ dự phòng khi tra cứu thất bại.
+   * TUYỆT ĐỐI KHÔNG bịa đặt nguồn sử sách (như Đại Việt Sử Ký Toàn Thư) khi chưa thực sự đối chiếu.
+   */
   private createFallbackDossier(topic: string, historicalEra: string, reason: string): ResearchDossier {
     return {
       topic,
       historicalEra,
-      summary: `Hồ sơ nghiên cứu sự kiện "${topic}" thuộc ${historicalEra}. (${reason})`,
+      summary: `Hồ sơ nghiên cứu sự kiện "${topic}" thuộc ${historicalEra}. (${reason}). Dữ liệu đang chờ xác minh độc lập.`,
       verifiedAt: new Date().toISOString(),
       isApproved: false,
       isMockEngine: false,
       facts: [
         {
           id: `fact_fallback_1`,
-          category: 'CONFIRMED_FACT',
-          factSummary: `Sự kiện "${topic}" là một mốc son hào hùng trong tiến trình lịch sử dựng nước và giữ nước của dân tộc Việt Nam.`,
+          category: 'HISTORICAL_HYPOTHESIS', // Đánh dấu giả định khi chưa tìm thấy tài liệu xác thực
+          factSummary: `Sự kiện "${topic}" trong thời kỳ ${historicalEra} cần được cung cấp tư liệu và đối chiếu nguồn sử học trước khi xuất bản.`,
           yearOrEra: historicalEra,
-          keyFigures: [topic],
+          keyFigures: [topic.split(' ')[0] || 'Chưa rõ nhân vật'],
           location: 'Việt Nam',
           citations: [
             {
               id: `cite_fallback_1`,
-              sourceTitle: 'Đại Việt Sử Ký Toàn Thư / Khâm Định Việt Sử Thông Giám Cương Mục',
-              author: 'Quốc Sử Quán Triều Nguyễn / Sử gia Ngô Sĩ Liên',
-              volumeOrChapter: 'Chính sử lưu trữ quốc gia',
-              quoteExcerpt: `Ghi chép về sự kiện ${topic} trong diễn trình lịch sử dân tộc`,
-              verificationUrl: 'https://vi.wikipedia.org/wiki/L%E1%BB%8Bch_s%E1%BB%AD_Vi%E1%BB%87t_Nam',
+              sourceTitle: 'Chưa có nguồn kiểm chứng trực tuyến',
+              author: 'Hệ thống tự động (Chờ người dùng cung cấp nguồn)',
+              volumeOrChapter: 'Chưa xác minh',
+              quoteExcerpt: `Dữ liệu về ${topic} cần được người dùng tải lên tư liệu hoặc kiểm chứng thủ công. (${reason})`,
+              verificationUrl: '',
               isMockSource: false,
-              isIndependentlyVerified: true,
-              verificationEvidence: 'Tài liệu đối chiếu kho thư tịch cổ Việt Nam'
+              isIndependentlyVerified: false,
+              verificationLevel: 'UNVERIFIED',
+              verificationEvidence: 'Không tìm thấy bài viết Wikipedia tương ứng. Cần người dùng phê duyệt và bổ sung trích dẫn chính sử trước khi xuất bản.'
             }
           ],
           isApproved: false,

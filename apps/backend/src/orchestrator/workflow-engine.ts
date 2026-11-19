@@ -136,8 +136,8 @@ export class WorkflowEngine {
         throw new Error(`Không thể bắt đầu nghiên cứu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là DRAFT hoặc FAILED.`);
       }
 
-      // Configure provider mode (mock vs live)
-      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
+      // Configure provider mode (mock vs live) per-job without mutating global registry state
+      const providerMode: 'live' | 'mock' = project.useMockProvider === false ? 'live' : 'mock';
 
       await this.checkConcurrencyLock(projectId);
 
@@ -148,8 +148,8 @@ export class WorkflowEngine {
           data: { status: 'RESEARCHING' }
         });
 
-        await this.updateJobLog(job.id, 'Đang thẩm định sử liệu với Research Agent...', 30);
-        const dossier = await this.researchAgent.execute(project.title, project.historicalEra);
+        await this.updateJobLog(job.id, `Đang thẩm định sử liệu với Research Agent (Chế độ: ${providerMode.toUpperCase()})...`, 30);
+        const dossier = await this.researchAgent.execute(project.title, project.historicalEra, providerMode);
 
         await this.updateJobLog(job.id, `Trích xuất ${dossier.facts.length} dữ kiện lịch sử có nguồn chứng thực`, 60);
 
@@ -224,8 +224,8 @@ export class WorkflowEngine {
         throw new Error(`Không thể duyệt sử liệu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là RESEARCH_PENDING_APPROVAL.`);
       }
 
-      // Configure provider mode (mock vs live)
-      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
+      // Configure provider mode (mock vs live) per-job without mutating global registry state
+      const providerMode: 'live' | 'mock' = project.useMockProvider === false ? 'live' : 'mock';
 
       await this.checkConcurrencyLock(projectId);
 
@@ -262,7 +262,11 @@ export class WorkflowEngine {
           }))
         };
 
-        const scriptDoc = await this.scriptAgent.execute(dossier);
+        const scriptDoc = await this.scriptAgent.execute(
+          dossier,
+          { targetDurationSec: project.targetDurationSec },
+          providerMode
+        );
 
         // Save script to DB (initially isApproved = false)
         await prisma.script.upsert({
@@ -362,8 +366,8 @@ export class WorkflowEngine {
         throw new Error(`Không thể duyệt kịch bản khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là SCRIPT_PENDING_APPROVAL.`);
       }
 
-      // Configure provider mode (mock vs live)
-      ProviderRegistry.getInstance().setMode(project.useMockProvider === false ? 'live' : 'mock');
+      // Configure provider mode (mock vs live) per-job without mutating global registry state
+      const providerMode: 'live' | 'mock' = project.useMockProvider === false ? 'live' : 'mock';
 
       await this.checkConcurrencyLock(projectId);
 
@@ -380,7 +384,7 @@ export class WorkflowEngine {
           data: { status: 'GENERATING_ASSETS' }
         });
 
-        await this.updateJobLog(job.id, 'Đang sinh ảnh minh họa và giọng thuyết minh tiếng Việt...', 20);
+        await this.updateJobLog(job.id, `Đang sinh ảnh minh họa và giọng thuyết minh tiếng Việt (Chế độ: ${providerMode.toUpperCase()})...`, 20);
 
         const sceneDrafts = project.scenes.map(s => ({
           sceneNumber: s.sceneNumber,
@@ -393,10 +397,10 @@ export class WorkflowEngine {
           factIds: []
         }));
 
-        // Generate Visuals & Audio in parallel
+        // Generate Visuals & Audio in parallel using job-scoped provider
         const [visuals, audios] = await Promise.all([
-          this.visualAgent.execute(sceneDrafts, project.title, project.historicalEra),
-          this.voiceAgent.execute(sceneDrafts)
+          this.visualAgent.execute(sceneDrafts, project.title, project.historicalEra, providerMode),
+          this.voiceAgent.execute(sceneDrafts, { voiceGender: 'MALE', speechRate: '+18%' }, providerMode)
         ]);
 
         await this.updateJobLog(job.id, `Đã tạo ${visuals.length} ảnh và ${audios.length} tệp âm thanh`, 60);
@@ -565,7 +569,8 @@ export class WorkflowEngine {
         scriptDoc,
         visuals,
         audios,
-        dossier
+        dossier,
+        { showBranding: false, showHistoricalBadge: false }
       );
 
       await prisma.project.update({

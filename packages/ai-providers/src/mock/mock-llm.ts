@@ -81,7 +81,7 @@ export class MockLLMProvider implements ILLMProvider {
     };
   }
 
-  async generateScript(dossier: ResearchDossier): Promise<ScriptDocument> {
+  async generateScript(dossier: ResearchDossier, options?: { targetDurationSec?: number }): Promise<ScriptDocument> {
     const normalized = dossier.topic.toLowerCase();
     if (normalized.includes('bạch đằng') || normalized.includes('ngô quyền')) {
       return PREDEFINED_HISTORY_TOPICS['bach-dang-938'].script;

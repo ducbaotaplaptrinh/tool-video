@@ -57,3 +57,16 @@
 * **Decision:**
   1. **Dual TTS Engine**: Implement primary execution via `edge-tts` (`vi-VN-NamMinhNeural` / `vi-VN-HoaiMyNeural`), with automatic fallback to Google Neural TTS (`gTTS` Vietnamese neural voice via isolated python script execution using JSON-encoded text).
   2. **Bounds-Safe Alignment**: Guarantee that word timestamps are mathematically bounded within `[0.2, totalDuration - 0.2]`, ensuring zero overflow and 100% QA score compliance.
+
+---
+
+### ADR-008: Video Quality Pacing, Multi-shot Transitions & Zero-Watermark Canvas
+* **Status:** Accepted
+* **Context:** Real-world testing revealed 6 key issues: slow monotone voiceover (~130 WPM), subtitles drifting during speech pauses, video overshooting 45s target duration, static visual scenes lingering 15-18s, distracting studio watermarks and badges, and unverified Wikipedia citations mislabeled as independently verified.
+* **Decision:**
+  1. **Speech Tempo & Voice Selection**: Set default speech tempo to `+18%` (speed ratio `1.18` via FFmpeg `atempo`, preserving natural pitch) with male (`vi-VN-NamMinhNeural`) and female (`vi-VN-HoaiMyNeural`) options.
+  2. **Acoustic Sentence Boundary Alignment**: Use FFmpeg `silencedetect=noise=-30dB:d=0.2` to assign words strictly to active speech windows between sentence pauses, preventing subtitle drift.
+  3. **Word Budgeting & Duration Control**: Set Script Agent target duration to 45s with ~2.8 words/sec budgeting (~120-130 words across 4 scenes), verified to produce 40-45s Reels.
+  4. **Multi-shot Dynamic Visuals**: Extended Remotion scenes with `VisualShot[]` supporting 4-6s dynamic sub-shots with `cut` and `crossfade` transitions.
+  5. **Zero Watermark & Zero Fake Badges**: Default `showBranding: false` and `showHistoricalBadge: false` for clean, professional video delivery. Removed SVG text banners.
+  6. **Epistemic Honesty**: Classified Wikipedia citations as `verificationLevel: 'WIKIPEDIA_SECONDARY_SOURCE'` with `isIndependentlyVerified: false`, preventing misleading claims of academic verification without primary sources.

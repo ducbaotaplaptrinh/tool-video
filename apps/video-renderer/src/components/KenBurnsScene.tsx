@@ -5,11 +5,17 @@ import { CameraMotion } from '@vietsu/shared';
 interface KenBurnsSceneProps {
   visualUrl: string;
   motion: CameraMotion;
+  transition?: 'cut' | 'crossfade';
 }
 
-export const KenBurnsScene: React.FC<KenBurnsSceneProps> = ({ visualUrl, motion }) => {
+export const KenBurnsScene: React.FC<KenBurnsSceneProps> = ({ visualUrl, motion, transition = 'cut' }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+
+  // Crossfade transition opacity
+  const opacity = transition === 'crossfade'
+    ? interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' })
+    : 1.0;
 
   let scale = 1.0;
   let translateX = 0;
@@ -53,7 +59,8 @@ export const KenBurnsScene: React.FC<KenBurnsSceneProps> = ({ visualUrl, motion 
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        backgroundColor: '#090604'
+        backgroundColor: '#090604',
+        opacity
       }}
     >
       <div

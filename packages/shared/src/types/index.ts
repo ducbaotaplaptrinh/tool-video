@@ -13,6 +13,7 @@ export interface HistoricalCitation {
   isMockSource?: boolean;
   isIndependentlyVerified?: boolean;
   verificationEvidence?: string;
+  verificationLevel?: 'UNVERIFIED' | 'WIKIPEDIA_SECONDARY_SOURCE' | 'PRIMARY_HISTORICAL_CHRONICLE';
 }
 
 export interface ResearchFact {
@@ -74,12 +75,23 @@ export interface WordTimestamp {
   end: number;   // in seconds
 }
 
+export interface VisualShot {
+  visualUrl: string;
+  durationInFrames: number;
+  cameraMotion: CameraMotion;
+  transition?: 'cut' | 'crossfade';
+}
+
 export interface SceneAudioTrack {
   sceneNumber: number;
   audioUrl: string;
   localPath: string;
   durationSec: number;
   wordTimestamps: WordTimestamp[];
+  providerUsed?: string;
+  voiceUsed?: string;
+  speechRate?: string;
+  alignmentAccuracy?: 'sentence_boundary_acoustic' | 'word_boundary' | 'sentence_chunk' | 'interpolated';
 }
 
 export interface VisualAsset {
@@ -106,6 +118,7 @@ export interface RemotionSceneProps {
   subtitles: WordTimestamp[];
   citationBadge?: string;
   subtitleLayout?: SubtitleLayoutSpecs;
+  visualShots?: VisualShot[];
 }
 
 export interface VietSuReelProps {
@@ -118,6 +131,8 @@ export interface VietSuReelProps {
   bgmUrl?: string;
   bgmVolume: number;
   scenes: RemotionSceneProps[];
+  showBranding?: boolean;
+  showHistoricalBadge?: boolean;
 }
 
 export type ServiceType = 

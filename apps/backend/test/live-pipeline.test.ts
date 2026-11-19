@@ -67,7 +67,8 @@ async function runLivePipelineSuite() {
       
       const citation = firstFact.citations[0];
       assert.strictEqual(citation.isMockSource, false, 'Citation isMockSource must be false');
-      assert.strictEqual(citation.isIndependentlyVerified, true, 'Citation isIndependentlyVerified must be true');
+      assert.strictEqual(citation.isIndependentlyVerified, false, 'Wikipedia citations cannot be claimed as independently verified primary sources');
+      assert.strictEqual(citation.verificationLevel, 'WIKIPEDIA_SECONDARY_SOURCE', 'Verification level must be WIKIPEDIA_SECONDARY_SOURCE');
       assert.ok(citation.verificationUrl?.includes('wikipedia.org'), 'Must provide accredited Wikipedia URL');
       assert.ok(citation.quoteExcerpt?.length > 20, 'Must have authentic quote excerpt');
     });
@@ -165,7 +166,8 @@ async function runLivePipelineSuite() {
       const rItem = projectData.researchItems[0];
       const cites = JSON.parse(rItem.citations || '[]');
       assert.strictEqual(cites[0]?.isMockSource, false, 'Citation must not be mock');
-      assert.strictEqual(cites[0]?.isIndependentlyVerified, true, 'Citation must be verified');
+      assert.strictEqual(cites[0]?.isIndependentlyVerified, false, 'Wikipedia secondary source cannot be claimed as independently verified primary source');
+      assert.strictEqual(cites[0]?.verificationLevel, 'WIKIPEDIA_SECONDARY_SOURCE');
 
       // 4.3 Approve Research -> Generate Script
       const appRes = await fetch(`${baseUrl}/projects/${p1Id}/pipeline/approve-research`, { method: 'POST' });
@@ -202,14 +204,14 @@ async function runLivePipelineSuite() {
       assert.strictEqual(projectData?.status, 'READY_TO_RENDER');
       assert.ok(projectData.assets.length >= 8, 'Must generate assets');
 
-      // 4.5 Verify QA report confirms isIndependentlyVerified = true
+      // 4.5 Verify QA report confirms isIndependentlyVerified = false (truthful Wikipedia secondary source classification)
       const fullProject = await prisma.project.findUnique({ where: { id: p1Id } });
       assert.ok(fullProject?.qaReport, 'qaReport must exist');
       const parsedQa = JSON.parse(fullProject.qaReport);
       assert.strictEqual(
         parsedQa.isIndependentlyVerified,
-        true,
-        'Live project using Wikipedia authentic sources must have isIndependentlyVerified = true'
+        false,
+        'Live project using Wikipedia secondary sources must have isIndependentlyVerified = false until primary ancient sources are attested'
       );
       assert.ok(parsedQa.isPassing, 'QA report must pass');
     });
@@ -307,7 +309,8 @@ async function runLivePipelineSuite() {
         'Must extract authentic facts about Ngọc Hồi - Đống Đa'
       );
       assert.strictEqual(cites[0]?.isMockSource, false);
-      assert.strictEqual(cites[0]?.isIndependentlyVerified, true);
+      assert.strictEqual(cites[0]?.isIndependentlyVerified, false, 'Wikipedia secondary source cannot be claimed as independently verified primary source');
+      assert.strictEqual(cites[0]?.verificationLevel, 'WIKIPEDIA_SECONDARY_SOURCE');
 
       // Approve research
       const appRes = await fetch(`${baseUrl}/projects/${p2Id}/pipeline/approve-research`, { method: 'POST' });

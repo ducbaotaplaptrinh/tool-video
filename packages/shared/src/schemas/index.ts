@@ -16,7 +16,8 @@ export const HistoricalCitationSchema = z.object({
   verificationUrl: z.string().url().optional().or(z.literal('')),
   isMockSource: z.boolean().optional().default(false),
   isIndependentlyVerified: z.boolean().optional().default(false),
-  verificationEvidence: z.string().optional()
+  verificationEvidence: z.string().optional(),
+  verificationLevel: z.enum(['UNVERIFIED', 'WIKIPEDIA_SECONDARY_SOURCE', 'PRIMARY_HISTORICAL_CHRONICLE']).default('WIKIPEDIA_SECONDARY_SOURCE')
 });
 
 export const ResearchFactSchema = z.object({
@@ -90,6 +91,13 @@ export const SubtitleLayoutSpecsSchema = z.object({
   maxWidthPx: z.number().default(900)
 });
 
+export const VisualShotSchema = z.object({
+  visualUrl: z.string().min(1),
+  durationInFrames: z.number().int().positive(),
+  cameraMotion: CameraMotionSchema.default('ZOOM_IN'),
+  transition: z.enum(['cut', 'crossfade']).default('cut')
+});
+
 export const RemotionScenePropsSchema = z.object({
   sceneNumber: z.number().int().positive(),
   visualUrl: z.string().min(1),
@@ -98,7 +106,8 @@ export const RemotionScenePropsSchema = z.object({
   cameraMotion: CameraMotionSchema,
   subtitles: z.array(WordTimestampSchema),
   citationBadge: z.string().optional(),
-  subtitleLayout: SubtitleLayoutSpecsSchema.optional()
+  subtitleLayout: SubtitleLayoutSpecsSchema.optional(),
+  visualShots: z.array(VisualShotSchema).optional()
 });
 
 export const VietSuReelPropsSchema = z.object({
@@ -110,7 +119,9 @@ export const VietSuReelPropsSchema = z.object({
   height: z.number().int().positive().default(1920),
   bgmUrl: z.string().optional(),
   bgmVolume: z.number().min(0).max(1).default(0.25),
-  scenes: z.array(RemotionScenePropsSchema).min(1)
+  scenes: z.array(RemotionScenePropsSchema).min(1),
+  showBranding: z.boolean().default(false),
+  showHistoricalBadge: z.boolean().default(false)
 });
 
 export const CreateProjectSchema = z.object({

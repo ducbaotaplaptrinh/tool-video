@@ -5,17 +5,17 @@
 ---
 
 ## Session State at Last Handoff
-- **Git Branch:** `feat/phase2-agent-memory-and-real-ai`
-- **Base PR:** PR #1 (`feat/phase1-hardening-and-verification` -> `main`, 100% Green CI on GitHub Actions).
-- **Working Tree:** All Phase 2 implementations complete, compiled, tested, and ready for commit.
+- **Git Branch:** `feat/video-quality-improvement`
+- **Base PR:** PR #2 (`feat/phase2-agent-memory-and-real-ai` -> `main`, 100% Green CI on GitHub Actions).
+- **Working Tree:** All video quality improvements complete, compiled, tested, and verified.
 - **Test Baselines:**
   - `npm run test`: 18 PASSED, 0 FAILED (Phase 1 Hardening & Regression Suite).
   - `npm run test:live`: 6 PASSED, 0 FAILED (Phase 2 Real AI & Dual Topic Video Generation Suite).
-- **Knowledge Graph:** Updated at `graphify-out/` (663 nodes, 1273 edges, 35 communities).
 - **Rendered Artifacts:**
-  - `vietsu_a4c4ac3e-ea0d-4817-9853-113567abbe2b_1795083469323.mp4` (Bạch Đằng 938: 1080x1920 30fps H.264/AAC, 33.16 MB).
-  - Visual PNG snapshot extracted and verified (562 KB).
-  - Real authentic Wikipedia records, Pollinations AI imagery, and Edge-TTS/gTTS Vietnamese neural speech.
+  - `storage/videos/bach_dang_938_version_A_baseline.mp4` (Duration: 47.51s, Size: 21.95 MB, 1080x1920 30fps H.264/AAC).
+  - `storage/videos/bach_dang_938_version_B_improved.mp4` (Duration: 40.32s, Size: 24.74 MB, 1080x1920 30fps H.264/AAC, Multi-shot dynamic cuts & crossfade, 0 watermarks).
+  - `storage/ab_preview.html`: Interactive A/B video player with technical metrics table and comparison.
+  - Real authentic Wikipedia records, Pollinations AI imagery, and Edge-TTS/gTTS Vietnamese neural speech (+18% tempo).
 
 ---
 

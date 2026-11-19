@@ -40,52 +40,49 @@ async function main() {
   // Ensure output directory exists
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
+  // Helper to convert storage URL to data URI for headless Chromium
+  const toDataUri = (url: string | undefined): string | undefined => {
+    if (!url) return url;
+    let absPath = url;
+    if (url.startsWith('/storage/')) {
+      const rel = url.replace('/storage/', '');
+      absPath = path.join(storageBase, rel);
+    } else if (url.startsWith('file:///')) {
+      absPath = url.replace('file:///', '');
+    }
+
+    if (fs.existsSync(absPath)) {
+      const buf = fs.readFileSync(absPath);
+      if (absPath.endsWith('.svg')) {
+        return `data:image/svg+xml;base64,${buf.toString('base64')}`;
+      } else if (absPath.endsWith('.png')) {
+        return `data:image/png;base64,${buf.toString('base64')}`;
+      } else if (absPath.endsWith('.jpg') || absPath.endsWith('.jpeg')) {
+        return `data:image/jpeg;base64,${buf.toString('base64')}`;
+      } else if (absPath.endsWith('.mp3')) {
+        return `data:audio/mpeg;base64,${buf.toString('base64')}`;
+      } else if (absPath.endsWith('.wav')) {
+        return `data:audio/wav;base64,${buf.toString('base64')}`;
+      }
+    }
+    return url;
+  };
+
   // Map local /storage/... URLs to data URIs for headless Chromium
   const mappedScenes = reelProps.scenes.map(s => {
-    let visualUrl = s.visualUrl;
-    let audioUrl = s.audioUrl;
+    const visualUrl = toDataUri(s.visualUrl) || s.visualUrl;
+    const audioUrl = toDataUri(s.audioUrl) || s.audioUrl;
 
-    if (visualUrl) {
-      let absPath = visualUrl;
-      if (visualUrl.startsWith('/storage/')) {
-        const rel = visualUrl.replace('/storage/', '');
-        absPath = path.join(storageBase, rel);
-      } else if (visualUrl.startsWith('file:///')) {
-        absPath = visualUrl.replace('file:///', '');
-      }
-
-      if (fs.existsSync(absPath)) {
-        const buf = fs.readFileSync(absPath);
-        if (absPath.endsWith('.svg')) {
-          visualUrl = `data:image/svg+xml;base64,${buf.toString('base64')}`;
-        } else if (absPath.endsWith('.png')) {
-          visualUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        } else if (absPath.endsWith('.jpg') || absPath.endsWith('.jpeg')) {
-          visualUrl = `data:image/jpeg;base64,${buf.toString('base64')}`;
-        }
-      }
-    }
-
-    if (audioUrl) {
-      let absPath = audioUrl;
-      if (audioUrl.startsWith('/storage/')) {
-        const rel = audioUrl.replace('/storage/', '');
-        absPath = path.join(storageBase, rel);
-      } else if (audioUrl.startsWith('file:///')) {
-        absPath = audioUrl.replace('file:///', '');
-      }
-
-      if (fs.existsSync(absPath)) {
-        const audioBuf = fs.readFileSync(absPath);
-        const mime = absPath.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
-        audioUrl = `data:${mime};base64,${audioBuf.toString('base64')}`;
-      }
-    }
+    const visualShots = s.visualShots?.map(shot => ({
+      ...shot,
+      visualUrl: toDataUri(shot.visualUrl) || shot.visualUrl
+    }));
 
     return {
       ...s,
       visualUrl,
-      audioUrl
+      audioUrl,
+      visualShots
     };
   });
 
@@ -95,7 +92,11 @@ async function main() {
   } as Record<string, unknown>;
 
   // 1. Bundle Remotion entry
-  const entryPoint = path.resolve(__dirname, 'index.ts');
+  const entryPoint = fs.existsSync(path.resolve(__dirname, 'index.ts'))
+    ? path.resolve(__dirname, 'index.ts')
+    : (fs.existsSync(path.resolve(__dirname, '../src/index.ts'))
+      ? path.resolve(__dirname, '../src/index.ts')
+      : path.resolve(__dirname, 'index.js'));
   console.log(`[VietSu Render CLI] Đang bundle Remotion từ: ${entryPoint}`);
 
   const bundleLocation = await bundle({
