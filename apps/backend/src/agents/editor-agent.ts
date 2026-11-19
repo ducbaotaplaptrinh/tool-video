@@ -38,7 +38,12 @@ export class EditorAgent {
         durationInFrames,
         cameraMotion: visual.cameraMotion || sceneDraft.cameraMotion || 'ZOOM_IN',
         subtitles: audio.wordTimestamps || [],
-        citationBadge: defaultCitation
+        citationBadge: defaultCitation,
+        subtitleLayout: {
+          bottomPx: 280,
+          maxWordsPerChunk: 6,
+          maxWidthPx: 900
+        }
       });
     }
 

@@ -124,9 +124,28 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
                   <div className="pt-2 flex items-center justify-between border-t border-slate-800 text-slate-300">
                     <span>Vùng an toàn Safe-Zone Facebook Reels:</span>
-                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                      <CheckCircle2 className="w-4 h-4" /> Đạt chuẩn
-                    </span>
+                    {qaReport.safeZoneCheckPassed ? (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-4 h-4" /> Đạt chuẩn (Cách đáy ≥ 260px)
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-rose-400 font-bold">
+                        <AlertTriangle className="w-4 h-4" /> Cảnh báo lệch Safe-Zone
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-800 text-slate-300">
+                    <span>Thẩm định sử học độc lập:</span>
+                    {qaReport.isIndependentlyVerified ? (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-4 h-4" /> Đã kiểm định độc lập
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-400 font-bold">
+                        <AlertTriangle className="w-4 h-4" /> Chưa kiểm định độc lập
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -134,8 +153,8 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                   <div className="mt-3 p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200/90 flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="block text-amber-300">Nguồn dữ liệu kiểm thử (Mock Engine)</strong>
-                      Dữ liệu lịch sử cho video này được sinh bởi Mock LLM Engine (0đ API) để xác thực pipeline. Chưa được kiểm chứng độc lập bởi học giả.
+                      <strong className="block text-amber-300">Lưu ý tính chuẩn xác sử liệu:</strong>
+                      Dữ liệu lịch sử hiện tại chưa qua thẩm định độc lập bởi hội đồng chuyên gia học thuật hoặc văn bản lưu trữ chuẩn quốc gia.
                     </div>
                   </div>
                 )}

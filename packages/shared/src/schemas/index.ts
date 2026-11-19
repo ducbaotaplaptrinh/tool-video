@@ -14,7 +14,9 @@ export const HistoricalCitationSchema = z.object({
   pageOrSection: z.string().optional(),
   quoteExcerpt: z.string().min(5, 'Trích dẫn xác minh phải có ít nhất 5 ký tự'),
   verificationUrl: z.string().url().optional().or(z.literal('')),
-  isMockSource: z.boolean().optional().default(false)
+  isMockSource: z.boolean().optional().default(false),
+  isIndependentlyVerified: z.boolean().optional().default(false),
+  verificationEvidence: z.string().optional()
 });
 
 export const ResearchFactSchema = z.object({
@@ -82,6 +84,12 @@ export const WordTimestampSchema = z.object({
   end: z.number().nonnegative()
 });
 
+export const SubtitleLayoutSpecsSchema = z.object({
+  bottomPx: z.number().default(280),
+  maxWordsPerChunk: z.number().default(6),
+  maxWidthPx: z.number().default(900)
+});
+
 export const RemotionScenePropsSchema = z.object({
   sceneNumber: z.number().int().positive(),
   visualUrl: z.string().min(1),
@@ -89,7 +97,8 @@ export const RemotionScenePropsSchema = z.object({
   durationInFrames: z.number().int().positive(),
   cameraMotion: CameraMotionSchema,
   subtitles: z.array(WordTimestampSchema),
-  citationBadge: z.string().optional()
+  citationBadge: z.string().optional(),
+  subtitleLayout: SubtitleLayoutSpecsSchema.optional()
 });
 
 export const VietSuReelPropsSchema = z.object({

@@ -11,6 +11,8 @@ export interface HistoricalCitation {
   quoteExcerpt: string;
   verificationUrl?: string;
   isMockSource?: boolean;
+  isIndependentlyVerified?: boolean;
+  verificationEvidence?: string;
 }
 
 export interface ResearchFact {
@@ -89,6 +91,12 @@ export interface VisualAsset {
   cameraMotion: CameraMotion;
 }
 
+export interface SubtitleLayoutSpecs {
+  bottomPx: number; // Facebook Reels safe-zone: >= 260px and <= 600px
+  maxWordsPerChunk: number; // <= 8 to prevent multi-line vertical overflow
+  maxWidthPx: number; // <= 900px
+}
+
 export interface RemotionSceneProps {
   sceneNumber: number;
   visualUrl: string;
@@ -97,6 +105,7 @@ export interface RemotionSceneProps {
   cameraMotion: CameraMotion;
   subtitles: WordTimestamp[];
   citationBadge?: string;
+  subtitleLayout?: SubtitleLayoutSpecs;
 }
 
 export interface VietSuReelProps {

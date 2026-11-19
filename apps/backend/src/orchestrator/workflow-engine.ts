@@ -19,6 +19,7 @@ const execAsync = util.promisify(exec);
 
 export class WorkflowEngine {
   private static instance: WorkflowEngine;
+  private projectLocks = new Set<string>();
   private researchAgent = new ResearchAgent();
   private scriptAgent = new ScriptAgent();
   private visualAgent = new VisualAgent();
@@ -33,6 +34,22 @@ export class WorkflowEngine {
       WorkflowEngine.instance = new WorkflowEngine();
     }
     return WorkflowEngine.instance;
+  }
+
+  public isLocked(projectId: string): boolean {
+    return this.projectLocks.has(projectId);
+  }
+
+  public acquireLock(projectId: string): boolean {
+    if (this.projectLocks.has(projectId)) {
+      return false;
+    }
+    this.projectLocks.add(projectId);
+    return true;
+  }
+
+  public releaseLock(projectId: string): void {
+    this.projectLocks.delete(projectId);
   }
 
   private async checkConcurrencyLock(projectId: string) {
@@ -104,331 +121,361 @@ export class WorkflowEngine {
   }
 
   // 1. Step: Research
-  public async startPipeline(projectId: string) {
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new Error('Không tìm thấy dự án');
-
-    if (project.status !== 'DRAFT' && project.status !== 'FAILED') {
-      throw new Error(`Không thể bắt đầu nghiên cứu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là DRAFT hoặc FAILED.`);
+  public async startPipeline(projectId: string, isPreLocked = false) {
+    if (!isPreLocked) {
+      if (!this.acquireLock(projectId)) {
+        throw new Error('Dự án đang có tác vụ xử lý đồng thời. Vui lòng chờ.');
+      }
     }
 
-    await this.checkConcurrencyLock(projectId);
-
-    const job = await this.createJob(projectId, 'RESEARCH');
     try {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'RESEARCHING' }
-      });
+      const project = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!project) throw new Error('Không tìm thấy dự án');
 
-      await this.updateJobLog(job.id, 'Đang thẩm định sử liệu với Research Agent...', 30);
-      const dossier = await this.researchAgent.execute(project.title, project.historicalEra);
-
-      await this.updateJobLog(job.id, `Trích xuất ${dossier.facts.length} dữ kiện lịch sử có nguồn chứng thực`, 60);
-
-      // Save research items to DB (initially isApproved = false)
-      await prisma.researchItem.deleteMany({ where: { projectId } });
-      for (const fact of dossier.facts) {
-        await prisma.researchItem.create({
-          data: {
-            projectId,
-            category: fact.category,
-            factSummary: fact.factSummary,
-            yearOrEra: fact.yearOrEra,
-            keyFigures: JSON.stringify(fact.keyFigures),
-            location: fact.location,
-            citations: JSON.stringify(fact.citations),
-            isApproved: false
-          }
-        });
+      if (project.status !== 'DRAFT' && project.status !== 'FAILED') {
+        throw new Error(`Không thể bắt đầu nghiên cứu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là DRAFT hoặc FAILED.`);
       }
 
-      // Record Cost Log
-      const registry = ProviderRegistry.getInstance();
-      const costRecord = registry.getLLM().estimateCost(1200, 'LLM_RESEARCH');
-      await prisma.costLog.create({
-        data: {
-          projectId,
-          provider: costRecord.provider,
-          service: costRecord.service,
-          unitsUsed: costRecord.unitsUsed,
-          unitType: costRecord.unitType,
-          estimatedCostUSD: costRecord.estimatedCostUSD,
-          estimatedCostVND: costRecord.estimatedCostVND
+      await this.checkConcurrencyLock(projectId);
+
+      const job = await this.createJob(projectId, 'RESEARCH');
+      try {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'RESEARCHING' }
+        });
+
+        await this.updateJobLog(job.id, 'Đang thẩm định sử liệu với Research Agent...', 30);
+        const dossier = await this.researchAgent.execute(project.title, project.historicalEra);
+
+        await this.updateJobLog(job.id, `Trích xuất ${dossier.facts.length} dữ kiện lịch sử có nguồn chứng thực`, 60);
+
+        // Save research items to DB (initially isApproved = false)
+        await prisma.researchItem.deleteMany({ where: { projectId } });
+        for (const fact of dossier.facts) {
+          await prisma.researchItem.create({
+            data: {
+              projectId,
+              category: fact.category,
+              factSummary: fact.factSummary,
+              yearOrEra: fact.yearOrEra,
+              keyFigures: JSON.stringify(fact.keyFigures),
+              location: fact.location,
+              citations: JSON.stringify(fact.citations),
+              isApproved: false
+            }
+          });
         }
-      });
 
-      // Advance to approval gate
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'RESEARCH_PENDING_APPROVAL' }
-      });
+        // Record Cost Log
+        const registry = ProviderRegistry.getInstance();
+        const costRecord = registry.getLLM().estimateCost(1200, 'LLM_RESEARCH');
+        await prisma.costLog.create({
+          data: {
+            projectId,
+            provider: costRecord.provider,
+            service: costRecord.service,
+            unitsUsed: costRecord.unitsUsed,
+            unitType: costRecord.unitType,
+            estimatedCostUSD: costRecord.estimatedCostUSD,
+            estimatedCostVND: costRecord.estimatedCostVND
+          }
+        });
 
-      await this.completeJob(job.id, 'Hoàn thành nghiên cứu. Đang chờ phê duyệt từ người dùng.');
-    } catch (err: any) {
-      await this.failJob(job.id, err.message);
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'FAILED' }
-      });
-      throw err;
+        // Advance to approval gate
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'RESEARCH_PENDING_APPROVAL' }
+        });
+
+        await this.completeJob(job.id, 'Hoàn thành nghiên cứu. Đang chờ phê duyệt từ người dùng.');
+      } catch (err: any) {
+        await this.failJob(job.id, err.message);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'FAILED' }
+        });
+        throw err;
+      }
+    } finally {
+      this.releaseLock(projectId);
     }
   }
 
   // 2. Step: Approve Research & Run Scripting
-  public async approveResearch(projectId: string) {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: { researchItems: true }
-    });
-    if (!project) throw new Error('Không tìm thấy dự án');
-
-    if (project.status !== 'RESEARCH_PENDING_APPROVAL') {
-      throw new Error(`Không thể duyệt sử liệu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là RESEARCH_PENDING_APPROVAL.`);
+  public async approveResearch(projectId: string, isPreLocked = false) {
+    if (!isPreLocked) {
+      if (!this.acquireLock(projectId)) {
+        throw new Error('Dự án đang có tác vụ xử lý đồng thời. Vui lòng chờ.');
+      }
     }
 
-    await this.checkConcurrencyLock(projectId);
-
-    // Synchronize isApproved state in DB
-    await prisma.researchItem.updateMany({
-      where: { projectId },
-      data: { isApproved: true }
-    });
-
-    const job = await this.createJob(projectId, 'SCRIPTING');
     try {
-      await prisma.project.update({
+      const project = await prisma.project.findUnique({
         where: { id: projectId },
-        data: { status: 'SCRIPTING' }
+        include: { researchItems: true }
       });
+      if (!project) throw new Error('Không tìm thấy dự án');
 
-      await this.updateJobLog(job.id, 'Chuyển sang bước Script Agent biên kịch...', 25);
-
-      const dossier: ResearchDossier = {
-        topic: project.title,
-        historicalEra: project.historicalEra,
-        summary: project.description || project.title,
-        verifiedAt: new Date().toISOString(),
-        isApproved: true,
-        facts: project.researchItems.map(item => ({
-          id: item.id,
-          category: item.category as any,
-          factSummary: item.factSummary,
-          yearOrEra: item.yearOrEra,
-          keyFigures: JSON.parse(item.keyFigures),
-          location: item.location,
-          citations: JSON.parse(item.citations),
-          isApproved: true
-        }))
-      };
-
-      const scriptDoc = await this.scriptAgent.execute(dossier);
-
-      // Save script to DB (initially isApproved = false)
-      await prisma.script.upsert({
-        where: { projectId },
-        create: {
-          projectId,
-          title: scriptDoc.title,
-          hook: scriptDoc.hook,
-          context: scriptDoc.context,
-          climax: scriptDoc.climax,
-          resolutionAndCta: scriptDoc.resolutionAndCta,
-          fullNarrative: scriptDoc.fullNarrative,
-          totalWords: scriptDoc.totalWords,
-          estimatedTotalDurationSec: scriptDoc.estimatedTotalDurationSec,
-          isApproved: false
-        },
-        update: {
-          title: scriptDoc.title,
-          hook: scriptDoc.hook,
-          context: scriptDoc.context,
-          climax: scriptDoc.climax,
-          resolutionAndCta: scriptDoc.resolutionAndCta,
-          fullNarrative: scriptDoc.fullNarrative,
-          totalWords: scriptDoc.totalWords,
-          estimatedTotalDurationSec: scriptDoc.estimatedTotalDurationSec,
-          isApproved: false
-        }
-      });
-
-      // Save scene drafts
-      await prisma.scene.deleteMany({ where: { projectId } });
-      for (const scene of scriptDoc.scenes) {
-        await prisma.scene.create({
-          data: {
-            projectId,
-            sceneNumber: scene.sceneNumber,
-            title: scene.title,
-            narrativeText: scene.narrativeText,
-            wordCount: scene.wordCount,
-            estimatedDurationSec: scene.estimatedDurationSec,
-            visualPrompt: scene.visualPrompt,
-            cameraMotion: scene.cameraMotion
-          }
-        });
+      if (project.status !== 'RESEARCH_PENDING_APPROVAL') {
+        throw new Error(`Không thể duyệt sử liệu khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là RESEARCH_PENDING_APPROVAL.`);
       }
 
-      // Record cost
-      const registry = ProviderRegistry.getInstance();
-      const costRecord = registry.getLLM().estimateCost(950, 'LLM_SCRIPT');
-      await prisma.costLog.create({
-        data: {
-          projectId,
-          provider: costRecord.provider,
-          service: costRecord.service,
-          unitsUsed: costRecord.unitsUsed,
-          unitType: costRecord.unitType,
-          estimatedCostUSD: costRecord.estimatedCostUSD,
-          estimatedCostVND: costRecord.estimatedCostVND
+      await this.checkConcurrencyLock(projectId);
+
+      // Synchronize isApproved state in DB
+      await prisma.researchItem.updateMany({
+        where: { projectId },
+        data: { isApproved: true }
+      });
+
+      const job = await this.createJob(projectId, 'SCRIPTING');
+      try {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'SCRIPTING' }
+        });
+
+        await this.updateJobLog(job.id, 'Chuyển sang bước Script Agent biên kịch...', 25);
+
+        const dossier: ResearchDossier = {
+          topic: project.title,
+          historicalEra: project.historicalEra,
+          summary: project.description || project.title,
+          verifiedAt: new Date().toISOString(),
+          isApproved: true,
+          facts: project.researchItems.map(item => ({
+            id: item.id,
+            category: item.category as any,
+            factSummary: item.factSummary,
+            yearOrEra: item.yearOrEra,
+            keyFigures: JSON.parse(item.keyFigures),
+            location: item.location,
+            citations: JSON.parse(item.citations),
+            isApproved: true
+          }))
+        };
+
+        const scriptDoc = await this.scriptAgent.execute(dossier);
+
+        // Save script to DB (initially isApproved = false)
+        await prisma.script.upsert({
+          where: { projectId },
+          create: {
+            projectId,
+            title: scriptDoc.title,
+            hook: scriptDoc.hook,
+            context: scriptDoc.context,
+            climax: scriptDoc.climax,
+            resolutionAndCta: scriptDoc.resolutionAndCta,
+            fullNarrative: scriptDoc.fullNarrative,
+            totalWords: scriptDoc.totalWords,
+            estimatedTotalDurationSec: scriptDoc.estimatedTotalDurationSec,
+            isApproved: false
+          },
+          update: {
+            title: scriptDoc.title,
+            hook: scriptDoc.hook,
+            context: scriptDoc.context,
+            climax: scriptDoc.climax,
+            resolutionAndCta: scriptDoc.resolutionAndCta,
+            fullNarrative: scriptDoc.fullNarrative,
+            totalWords: scriptDoc.totalWords,
+            estimatedTotalDurationSec: scriptDoc.estimatedTotalDurationSec,
+            isApproved: false
+          }
+        });
+
+        // Save scene drafts
+        await prisma.scene.deleteMany({ where: { projectId } });
+        for (const scene of scriptDoc.scenes) {
+          await prisma.scene.create({
+            data: {
+              projectId,
+              sceneNumber: scene.sceneNumber,
+              title: scene.title,
+              narrativeText: scene.narrativeText,
+              wordCount: scene.wordCount,
+              estimatedDurationSec: scene.estimatedDurationSec,
+              visualPrompt: scene.visualPrompt,
+              cameraMotion: scene.cameraMotion
+            }
+          });
         }
-      });
 
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'SCRIPT_PENDING_APPROVAL' }
-      });
+        // Record cost
+        const registry = ProviderRegistry.getInstance();
+        const costRecord = registry.getLLM().estimateCost(950, 'LLM_SCRIPT');
+        await prisma.costLog.create({
+          data: {
+            projectId,
+            provider: costRecord.provider,
+            service: costRecord.service,
+            unitsUsed: costRecord.unitsUsed,
+            unitType: costRecord.unitType,
+            estimatedCostUSD: costRecord.estimatedCostUSD,
+            estimatedCostVND: costRecord.estimatedCostVND
+          }
+        });
 
-      await this.completeJob(job.id, 'Đã hoàn tất kịch bản và phân rã các cảnh. Chờ phê duyệt.');
-    } catch (err: any) {
-      await this.failJob(job.id, err.message);
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'FAILED' }
-      });
-      throw err;
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'SCRIPT_PENDING_APPROVAL' }
+        });
+
+        await this.completeJob(job.id, 'Đã hoàn tất kịch bản và phân rã các cảnh. Chờ phê duyệt.');
+      } catch (err: any) {
+        await this.failJob(job.id, err.message);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'FAILED' }
+        });
+        throw err;
+      }
+    } finally {
+      this.releaseLock(projectId);
     }
   }
 
   // 3. Step: Approve Script & Generate Assets (Images & Audio)
-  public async approveScript(projectId: string) {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: { script: true, scenes: { orderBy: { sceneNumber: 'asc' } }, researchItems: true }
-    });
-    if (!project || !project.script) throw new Error('Dự án chưa có kịch bản');
-
-    if (project.status !== 'SCRIPT_PENDING_APPROVAL') {
-      throw new Error(`Không thể duyệt kịch bản khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là SCRIPT_PENDING_APPROVAL.`);
+  public async approveScript(projectId: string, isPreLocked = false) {
+    if (!isPreLocked) {
+      if (!this.acquireLock(projectId)) {
+        throw new Error('Dự án đang có tác vụ xử lý đồng thời. Vui lòng chờ.');
+      }
     }
 
-    await this.checkConcurrencyLock(projectId);
-
-    // Synchronize isApproved state in DB
-    await prisma.script.update({
-      where: { projectId },
-      data: { isApproved: true }
-    });
-
-    const job = await this.createJob(projectId, 'ASSET_GENERATION');
     try {
-      await prisma.project.update({
+      const project = await prisma.project.findUnique({
         where: { id: projectId },
-        data: { status: 'GENERATING_ASSETS' }
+        include: { script: true, scenes: { orderBy: { sceneNumber: 'asc' } }, researchItems: true }
       });
+      if (!project || !project.script) throw new Error('Dự án chưa có kịch bản');
 
-      await this.updateJobLog(job.id, 'Đang sinh ảnh minh họa và giọng thuyết minh tiếng Việt...', 20);
-
-      const sceneDrafts = project.scenes.map(s => ({
-        sceneNumber: s.sceneNumber,
-        title: s.title,
-        narrativeText: s.narrativeText,
-        wordCount: s.wordCount,
-        estimatedDurationSec: s.estimatedDurationSec,
-        visualPrompt: s.visualPrompt,
-        cameraMotion: s.cameraMotion as any,
-        factIds: []
-      }));
-
-      // Generate Visuals & Audio in parallel
-      const [visuals, audios] = await Promise.all([
-        this.visualAgent.execute(sceneDrafts, project.title, project.historicalEra),
-        this.voiceAgent.execute(sceneDrafts)
-      ]);
-
-      await this.updateJobLog(job.id, `Đã tạo ${visuals.length} ảnh và ${audios.length} tệp âm thanh`, 60);
-
-      // Save media assets and update scenes
-      for (let i = 0; i < project.scenes.length; i++) {
-        const sc = project.scenes[i];
-        const visual = visuals.find(v => v.sceneNumber === sc.sceneNumber) || visuals[i];
-        const audio = audios.find(a => a.sceneNumber === sc.sceneNumber) || audios[i];
-
-        await prisma.mediaAsset.create({
-          data: {
-            projectId,
-            sceneNumber: sc.sceneNumber,
-            assetType: 'IMAGE',
-            url: visual.url,
-            localPath: visual.localPath,
-            mimeType: 'image/svg+xml'
-          }
-        });
-
-        await prisma.mediaAsset.create({
-          data: {
-            projectId,
-            sceneNumber: sc.sceneNumber,
-            assetType: 'AUDIO',
-            url: audio.audioUrl,
-            localPath: audio.localPath,
-            mimeType: 'audio/wav'
-          }
-        });
-
-        const durationInFrames = Math.max(30, Math.round(audio.durationSec * 30));
-
-        await prisma.scene.update({
-          where: { id: sc.id },
-          data: {
-            visualUrl: visual.url,
-            audioUrl: audio.audioUrl,
-            durationInFrames,
-            subtitles: JSON.stringify(audio.wordTimestamps)
-          }
-        });
+      if (project.status !== 'SCRIPT_PENDING_APPROVAL') {
+        throw new Error(`Không thể duyệt kịch bản khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép duyệt khi trạng thái là SCRIPT_PENDING_APPROVAL.`);
       }
 
-      // Record costs
-      const registry = ProviderRegistry.getInstance();
-      const imgCost = registry.getImage().estimateCost(visuals.length);
-      const totalAudioSec = audios.reduce((sum, a) => sum + a.durationSec, 0);
-      const ttsCost = registry.getTTS().estimateCost(totalAudioSec);
+      await this.checkConcurrencyLock(projectId);
 
-      await prisma.costLog.createMany({
-        data: [
-          {
-            projectId,
-            provider: imgCost.provider,
-            service: imgCost.service,
-            unitsUsed: imgCost.unitsUsed,
-            unitType: imgCost.unitType,
-            estimatedCostUSD: imgCost.estimatedCostUSD,
-            estimatedCostVND: imgCost.estimatedCostVND
-          },
-          {
-            projectId,
-            provider: ttsCost.provider,
-            service: ttsCost.service,
-            unitsUsed: ttsCost.unitsUsed,
-            unitType: ttsCost.unitType,
-            estimatedCostUSD: ttsCost.estimatedCostUSD,
-            estimatedCostVND: ttsCost.estimatedCostVND
-          }
-        ]
+      // Synchronize isApproved state in DB
+      await prisma.script.update({
+        where: { projectId },
+        data: { isApproved: true }
       });
 
-      await this.completeJob(job.id, 'Tài nguyên âm thanh & hình ảnh đã sẵn sàng!');
+      const job = await this.createJob(projectId, 'ASSET_GENERATION');
+      try {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'GENERATING_ASSETS' }
+        });
 
-      // Run Editor & QA
-      await this.runEditingAndQA(projectId, visuals, audios);
-    } catch (err: any) {
-      await this.failJob(job.id, err.message);
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'FAILED' }
-      });
-      throw err;
+        await this.updateJobLog(job.id, 'Đang sinh ảnh minh họa và giọng thuyết minh tiếng Việt...', 20);
+
+        const sceneDrafts = project.scenes.map(s => ({
+          sceneNumber: s.sceneNumber,
+          title: s.title,
+          narrativeText: s.narrativeText,
+          wordCount: s.wordCount,
+          estimatedDurationSec: s.estimatedDurationSec,
+          visualPrompt: s.visualPrompt,
+          cameraMotion: s.cameraMotion as any,
+          factIds: []
+        }));
+
+        // Generate Visuals & Audio in parallel
+        const [visuals, audios] = await Promise.all([
+          this.visualAgent.execute(sceneDrafts, project.title, project.historicalEra),
+          this.voiceAgent.execute(sceneDrafts)
+        ]);
+
+        await this.updateJobLog(job.id, `Đã tạo ${visuals.length} ảnh và ${audios.length} tệp âm thanh`, 60);
+
+        // Save media assets and update scenes
+        for (let i = 0; i < project.scenes.length; i++) {
+          const sc = project.scenes[i];
+          const visual = visuals.find(v => v.sceneNumber === sc.sceneNumber) || visuals[i];
+          const audio = audios.find(a => a.sceneNumber === sc.sceneNumber) || audios[i];
+
+          await prisma.mediaAsset.create({
+            data: {
+              projectId,
+              sceneNumber: sc.sceneNumber,
+              assetType: 'IMAGE',
+              url: visual.url,
+              localPath: visual.localPath,
+              mimeType: 'image/svg+xml'
+            }
+          });
+
+          await prisma.mediaAsset.create({
+            data: {
+              projectId,
+              sceneNumber: sc.sceneNumber,
+              assetType: 'AUDIO',
+              url: audio.audioUrl,
+              localPath: audio.localPath,
+              mimeType: 'audio/wav'
+            }
+          });
+
+          const durationInFrames = Math.max(30, Math.round(audio.durationSec * 30));
+
+          await prisma.scene.update({
+            where: { id: sc.id },
+            data: {
+              visualUrl: visual.url,
+              audioUrl: audio.audioUrl,
+              durationInFrames,
+              subtitles: JSON.stringify(audio.wordTimestamps)
+            }
+          });
+        }
+
+        // Record costs
+        const registry = ProviderRegistry.getInstance();
+        const imgCost = registry.getImage().estimateCost(visuals.length);
+        const totalAudioSec = audios.reduce((sum, a) => sum + a.durationSec, 0);
+        const ttsCost = registry.getTTS().estimateCost(totalAudioSec);
+
+        await prisma.costLog.createMany({
+          data: [
+            {
+              projectId,
+              provider: imgCost.provider,
+              service: imgCost.service,
+              unitsUsed: imgCost.unitsUsed,
+              unitType: imgCost.unitType,
+              estimatedCostUSD: imgCost.estimatedCostUSD,
+              estimatedCostVND: imgCost.estimatedCostVND
+            },
+            {
+              projectId,
+              provider: ttsCost.provider,
+              service: ttsCost.service,
+              unitsUsed: ttsCost.unitsUsed,
+              unitType: ttsCost.unitType,
+              estimatedCostUSD: ttsCost.estimatedCostUSD,
+              estimatedCostVND: ttsCost.estimatedCostVND
+            }
+          ]
+        });
+
+        await this.completeJob(job.id, 'Tài nguyên âm thanh & hình ảnh đã sẵn sàng!');
+
+        // Run Editor & QA
+        await this.runEditingAndQA(projectId, visuals, audios);
+      } catch (err: any) {
+        await this.failJob(job.id, err.message);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'FAILED' }
+        });
+        throw err;
+      }
+    } finally {
+      this.releaseLock(projectId);
     }
   }
 
@@ -530,161 +577,188 @@ export class WorkflowEngine {
   }
 
   // 5. Step: Render Video MP4 via Remotion CLI/Script
-  public async renderVideo(projectId: string): Promise<string> {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: { scenes: { orderBy: { sceneNumber: 'asc' } }, script: true, researchItems: true }
-    });
-    if (!project) throw new Error('Không tìm thấy dự án');
-
-    if (project.status !== 'READY_TO_RENDER' && project.status !== 'COMPLETED') {
-      throw new Error(`Không thể xuất video khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là READY_TO_RENDER hoặc COMPLETED.`);
+  public async renderVideo(projectId: string, isPreLocked = false): Promise<string> {
+    if (!isPreLocked) {
+      if (!this.acquireLock(projectId)) {
+        throw new Error('Dự án đang có tác vụ xử lý đồng thời. Vui lòng chờ.');
+      }
     }
 
-    await this.checkConcurrencyLock(projectId);
-
-    const job = await this.createJob(projectId, 'RENDERING');
     try {
-      await prisma.project.update({
+      const project = await prisma.project.findUnique({
         where: { id: projectId },
-        data: { status: 'RENDERING' }
+        include: { scenes: { orderBy: { sceneNumber: 'asc' } }, script: true, researchItems: true }
       });
+      if (!project) throw new Error('Không tìm thấy dự án');
 
-      await this.updateJobLog(job.id, 'Đang chuẩn bị dữ liệu render Remotion...', 20);
+      if (project.status !== 'READY_TO_RENDER' && project.status !== 'COMPLETED') {
+        throw new Error(`Không thể xuất video khi dự án đang ở trạng thái "${project.status}". Chỉ cho phép khi trạng thái là READY_TO_RENDER hoặc COMPLETED.`);
+      }
 
-      const storage = StorageService.getInstance();
-      const videosDir = storage.getVideosDir();
-      const outputFilename = `vietsu_${projectId}_${Date.now()}.mp4`;
-      const outputPath = path.join(videosDir, outputFilename);
+      await this.checkConcurrencyLock(projectId);
 
-      // Build props file for Remotion
-      const scenes: RemotionSceneProps[] = project.scenes.map(s => {
-        const subtitles = s.subtitles ? JSON.parse(s.subtitles) : [];
-        return {
-          sceneNumber: s.sceneNumber,
-          visualUrl: s.visualUrl || '',
-          audioUrl: s.audioUrl || '',
-          durationInFrames: s.durationInFrames || 180,
-          cameraMotion: (s.cameraMotion as any) || 'ZOOM_IN',
-          subtitles,
-          citationBadge: project.researchItems[0] ? `Chính sử: ${project.title}` : undefined
+      const job = await this.createJob(projectId, 'RENDERING');
+      try {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'RENDERING' }
+        });
+
+        await this.updateJobLog(job.id, 'Đang chuẩn bị dữ liệu render Remotion...', 20);
+
+        const storage = StorageService.getInstance();
+        const videosDir = storage.getVideosDir();
+        const outputFilename = `vietsu_${projectId}_${Date.now()}.mp4`;
+        const outputPath = path.join(videosDir, outputFilename);
+
+        // Build props file for Remotion with safe-zone parameters
+        const scenes: RemotionSceneProps[] = project.scenes.map(s => {
+          const subtitles = s.subtitles ? JSON.parse(s.subtitles) : [];
+          return {
+            sceneNumber: s.sceneNumber,
+            visualUrl: s.visualUrl || '',
+            audioUrl: s.audioUrl || '',
+            durationInFrames: s.durationInFrames || 180,
+            cameraMotion: (s.cameraMotion as any) || 'ZOOM_IN',
+            subtitles,
+            citationBadge: project.researchItems[0] ? `Chính sử: ${project.title}` : undefined,
+            subtitleLayout: {
+              bottomPx: 280,
+              maxWordsPerChunk: 6,
+              maxWidthPx: 900
+            }
+          };
+        });
+
+        const reelProps = {
+          projectId,
+          title: project.title,
+          historicalEra: project.historicalEra,
+          fps: 30,
+          width: 1080,
+          height: 1920,
+          bgmVolume: 0.25,
+          scenes
         };
-      });
 
-      const reelProps = {
-        projectId,
-        title: project.title,
-        historicalEra: project.historicalEra,
-        fps: 30,
-        width: 1080,
-        height: 1920,
-        bgmVolume: 0.25,
-        scenes
-      };
+        const tempPropsPath = path.join(storage.getTempDir(), `props_${projectId}.json`);
+        fs.writeFileSync(tempPropsPath, JSON.stringify(reelProps, null, 2), 'utf-8');
 
-      const tempPropsPath = path.join(storage.getTempDir(), `props_${projectId}.json`);
-      fs.writeFileSync(tempPropsPath, JSON.stringify(reelProps, null, 2), 'utf-8');
+        await this.updateJobLog(job.id, 'Khởi động Remotion Render Engine (1080x1920 @ 30fps)...', 40);
 
-      await this.updateJobLog(job.id, 'Khởi động Remotion Render Engine (1080x1920 @ 30fps)...', 40);
+        // Path to video-renderer render script
+        const rendererScriptPath = path.resolve(videoRendererDir, 'src/render-cli.ts');
+        const cmd = `npx tsx "${rendererScriptPath}" --props="${tempPropsPath}" --output="${outputPath}"`;
 
-      // Path to video-renderer render script
-      const rendererScriptPath = path.resolve(videoRendererDir, 'src/render-cli.ts');
-      const cmd = `npx tsx "${rendererScriptPath}" --props="${tempPropsPath}" --output="${outputPath}"`;
+        await this.updateJobLog(job.id, 'Đang xuất MP4 với H.264 và FFmpeg...', 60);
 
-      await this.updateJobLog(job.id, 'Đang xuất MP4 với H.264 và FFmpeg...', 60);
+        const { stdout } = await execAsync(cmd, {
+          cwd: videoRendererDir,
+          maxBuffer: 1024 * 1024 * 10
+        });
 
-      const { stdout } = await execAsync(cmd, {
-        cwd: videoRendererDir,
-        maxBuffer: 1024 * 1024 * 10
-      });
+        await this.updateJobLog(job.id, 'Remotion render output:\n' + stdout.slice(-300), 90);
 
-      await this.updateJobLog(job.id, 'Remotion render output:\n' + stdout.slice(-300), 90);
+        const publicVideoUrl = `/storage/videos/${outputFilename}`;
 
-      const publicVideoUrl = `/storage/videos/${outputFilename}`;
+        await prisma.project.update({
+          where: { id: projectId },
+          data: {
+            status: 'COMPLETED',
+            renderedVideoUrl: publicVideoUrl
+          }
+        });
 
-      await prisma.project.update({
-        where: { id: projectId },
-        data: {
-          status: 'COMPLETED',
-          renderedVideoUrl: publicVideoUrl
-        }
-      });
-
-      await this.completeJob(job.id, `Render hoàn tất! Video MP4 đã được lưu tại: ${publicVideoUrl}`);
-      return publicVideoUrl;
-    } catch (err: any) {
-      await this.failJob(job.id, err.message);
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'FAILED' }
-      });
-      throw err;
+        await this.completeJob(job.id, `Render hoàn tất! Video MP4 đã được lưu tại: ${publicVideoUrl}`);
+        return publicVideoUrl;
+      } catch (err: any) {
+        await this.failJob(job.id, err.message);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'FAILED' }
+        });
+        throw err;
+      }
+    } finally {
+      this.releaseLock(projectId);
     }
   }
 
   // 6. Rerun a step or scene
-  public async rerunStep(projectId: string, stepName: string, sceneNumber?: number) {
+  public async rerunStep(projectId: string, stepName: string, sceneNumber?: number, isPreLocked = false) {
     if (stepName === 'RESEARCH') {
-      return this.startPipeline(projectId);
+      return this.startPipeline(projectId, isPreLocked);
     } else if (stepName === 'SCRIPTING') {
-      return this.approveResearch(projectId);
+      return this.approveResearch(projectId, isPreLocked);
     } else if (stepName === 'ASSET_GENERATION') {
-      return this.approveScript(projectId);
+      return this.approveScript(projectId, isPreLocked);
     } else if (stepName === 'RENDER') {
-      return this.renderVideo(projectId);
+      return this.renderVideo(projectId, isPreLocked);
     }
     throw new Error(`Bước ${stepName} không hỗ trợ chạy lại`);
   }
 
   // 7. Retry a failed project
-  public async retry(projectId: string) {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: {
-        jobs: { orderBy: { startedAt: 'desc' }, take: 1 },
-        researchItems: true,
-        script: true
+  public async retry(projectId: string, isPreLocked = false) {
+    if (!isPreLocked) {
+      if (!this.acquireLock(projectId)) {
+        throw new Error('Dự án đang có tác vụ xử lý đồng thời. Vui lòng chờ.');
       }
-    });
-
-    if (!project) throw new Error('Không tìm thấy dự án');
-    if (project.status !== 'FAILED') {
-      throw new Error(`Dự án đang ở trạng thái "${project.status}", không cần thử lại.`);
     }
 
-    const lastJob = project.jobs[0];
-    const failedStep = lastJob ? lastJob.step : 'RESEARCH';
-
-    // Increment retry count
-    if (lastJob) {
-      await prisma.job.update({
-        where: { id: lastJob.id },
-        data: { retryCount: (lastJob.retryCount || 0) + 1 }
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        include: {
+          jobs: { orderBy: { startedAt: 'desc' }, take: 1 },
+          researchItems: true,
+          script: true
+        }
       });
+
+      if (!project) throw new Error('Không tìm thấy dự án');
+      if (project.status !== 'FAILED') {
+        throw new Error(`Dự án đang ở trạng thái "${project.status}", không cần thử lại.`);
+      }
+
+      await this.checkConcurrencyLock(projectId);
+
+      const lastJob = project.jobs[0];
+      const failedStep = lastJob ? lastJob.step : 'RESEARCH';
+
+      // Increment retry count
+      if (lastJob) {
+        await prisma.job.update({
+          where: { id: lastJob.id },
+          data: { retryCount: (lastJob.retryCount || 0) + 1 }
+        });
+      }
+
+      if (failedStep === 'RESEARCH') {
+        return this.startPipeline(projectId, true);
+      } else if (failedStep === 'SCRIPTING') {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'RESEARCH_PENDING_APPROVAL' }
+        });
+        return this.approveResearch(projectId, true);
+      } else if (failedStep === 'ASSET_GENERATION' || failedStep === 'EDITING_AND_QA') {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'SCRIPT_PENDING_APPROVAL' }
+        });
+        return this.approveScript(projectId, true);
+      } else if (failedStep === 'RENDERING') {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'READY_TO_RENDER' }
+        });
+        return this.renderVideo(projectId, true);
+      }
+
+      return this.startPipeline(projectId, true);
+    } finally {
+      this.releaseLock(projectId);
     }
-
-    if (failedStep === 'RESEARCH') {
-      return this.startPipeline(projectId);
-    } else if (failedStep === 'SCRIPTING') {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'RESEARCH_PENDING_APPROVAL' }
-      });
-      return this.approveResearch(projectId);
-    } else if (failedStep === 'ASSET_GENERATION' || failedStep === 'EDITING_AND_QA') {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'SCRIPT_PENDING_APPROVAL' }
-      });
-      return this.approveScript(projectId);
-    } else if (failedStep === 'RENDERING') {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: 'READY_TO_RENDER' }
-      });
-      return this.renderVideo(projectId);
-    }
-
-    return this.startPipeline(projectId);
   }
 }

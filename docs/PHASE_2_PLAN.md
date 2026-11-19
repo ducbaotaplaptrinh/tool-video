@@ -1,82 +1,92 @@
-# 🚀 VietSu AI Studio - Kế Hoạch Tích Hợp AI Thật (Phase 2 Plan)
+# 🚀 VietSu AI Studio - Khung Đề Xuất Kỹ Thuật Tích Hợp AI (Phase 2 Framework)
 
-> **Mục tiêu:** Nâng cấp từ Mock Engine (0đ thử nghiệm) lên hệ thống tích hợp các AI Provider thương mại thực tế, tối ưu hóa triệt để cho **văn phong lịch sử Việt Nam, hình ảnh cổ phong 9:16 và giọng đọc truyền cảm** với chi phí vận hành thấp nhất có thể (Target: **< 3.500 VNĐ / video 60s**).
+> [!IMPORTANT]
+> **Tuyên bố Phạm vi (Scope Disclaimer):**
+> Tài liệu này là đề xuất kiến trúc kỹ thuật và khung đánh giá ứng viên (Candidate Evaluation Framework) cho Phase 2.
+> - **Chưa áp dụng vào Phase 1**: Toàn bộ Phase 1 tiếp tục hoạt động độc lập với Mock Provider nội bộ (0đ chi phí, 100% offline).
+> - **Không sử dụng số liệu báo giá chưa kiểm chứng**: Mọi thông số mô hình và chi phí thực tế phải được kiểm chứng thông qua bảng báo giá chính thức của nhà cung cấp và sự phê duyệt từ người dùng trước khi triển khai.
 
 ---
 
-## 1. Ma trận Đánh giá & Lựa chọn Nhà cung cấp AI (Provider Matrix)
+## 1. Khung Tiêu Chí Đánh Giá Ứng Viên AI (Candidate Evaluation Framework)
+
+Để lựa chọn nhà cung cấp AI khi bước vào Phase 2, hệ thống thiết lập bộ tiêu chuẩn kỹ thuật đa chiều cho từng Agent:
 
 ### A. AI Nghiên Cứu & Biên Kịch Lịch Sử (Research & Script Agent)
 
-| Tiêu Chí | Google Gemini 1.5 Flash ⭐ (Đề xuất số 1) | OpenAI GPT-4o-mini | Anthropic Claude 3.5 Haiku |
-|---|---|---|---|
-| **Hiểu biết văn hóa & Lịch sử VN** | **Rất cao** (Được huấn luyện sâu trên kho tri thức đa ngữ và tài liệu tiếng Việt) | Khá (Cần prompt kiểm soát kỹ để tránh Hán-Việt lai tạp) | Tốt (Văn phong mượt mà) |
-| **Độ trễ phản hồi (Latency)** | ~ 1.2s | ~ 1.5s | ~ 1.8s |
-| **Chi phí Input Token** | **$0.075 / 1M tokens** (~1.900đ) | $0.150 / 1M tokens | $0.250 / 1M tokens |
-| **Chi phí Output Token** | **$0.300 / 1M tokens** (~7.600đ) | $0.600 / 1M tokens | $1.250 / 1M tokens |
-| **Gói dùng thử miễn phí** | Có Free Tier (15 RPM) phù hợp phát triển ban đầu | Không có free tier cho API | Không |
-| **Khả năng bám sát Schema JSON** | Tuyệt đối (Hỗ trợ native Structured Outputs) | Tuyệt đối (JSON Mode) | Tốt qua tool calling |
+| Tiêu Chí Đánh Giá | Mục Tiêu Kỹ Thuật | Phương Pháp Kiểm Chứng |
+|---|---|---|
+| **Độ am hiểu lịch sử & văn hóa Việt Nam** | Không bịa đặt triều đại, niên hiệu, quan chế, địa danh cổ (Đại La, Thăng Long, Hoa Lư...) | Benchmark với bộ đề 50 sự kiện lịch sử kinh điển đối chiếu chính sử |
+| **Bám sát cấu trúc dữ liệu JSON Schema** | Xuất đúng định dạng `ResearchDossier` và `ScriptDocument` theo Zod schema | Kiểm thử tỷ lệ parse thành công qua 100 lần sinh liên tục |
+| **Khả năng Grounding & Trích dẫn** | Chỉ lập luận dựa trên dữ kiện được cung cấp, không suy diễn vượt quá tư liệu | Cấm tạo fact mới ngoài tài liệu trích dẫn đầu vào |
+| **Bản quyền & Giấy phép sử dụng** | Được phép sử dụng thương mại nội dung tạo ra | Rà soát điều khoản dịch vụ (Terms of Service) của nhà cung cấp |
 
-👉 **Lựa chọn tối ưu:** **Google Gemini 1.5 Flash** làm Provider chính, fallback sang **GPT-4o-mini**.  
-*Ước tính chi phí kịch bản 1 video (1.500 input + 600 output tokens):* **~0.0003 USD (~8 VNĐ)**.
+*Các mô hình ứng viên tiềm năng để thẩm định thực tế:* Google Gemini Series (Gemini 1.5 Flash / Pro), OpenAI GPT Series (GPT-4o / GPT-4o-mini), Anthropic Claude Series (Claude 3.5 Sonnet / Haiku).
 
 ---
 
 ### B. AI Tạo Hình Ảnh Minh Họa Cổ Phong & Bản Đồ (Visual Agent)
 
-Đặc thù video lịch sử yêu cầu tỷ lệ dọc 9:16 (1080×1920), trang phục, giáp trụ và chiến thuyền thuần Việt (thời Tiền Ngô, Đinh, Tiền Lê, Lý, Trần, Lê Sơ, Tây Sơn...).
+Đặc thù video lịch sử dạng Short-form Reels đòi hỏi kiểm soát hình ảnh chặt chẽ:
 
-| Tiêu Chí | Flux Schnell (via Together/Replicate) ⭐ | Recraft V3 (Vector/Illustration) | Midjourney API (qua Proxy) |
-|---|---|---|---|
-| **Chi phí / bức ảnh** | **$0.003 - $0.006 / ảnh** (~75đ - 150đ) | $0.040 / ảnh (~1.000đ) | $0.050 - $0.080 / ảnh |
-| **Thời gian tạo ảnh** | **1.2s - 2.5s (4 steps)** | 8s - 12s | 30s - 60s |
-| **Hỗ trợ tỷ lệ 9:16** | Native (768×1344 hoặc 1080×1920) | Có (hỗ trợ nhiều preset) | Có (`--ar 9:16`) |
-| **Độ chân thực & Cổ phong** | Rất cao với LoRA/Prompt Hào khí Việt | Tuyệt vời cho bản đồ & tranh khắc gỗ | Rất cao nhưng khó kiểm soát chi tiết giáp trụ VN |
-| **Bản quyền thương mại** | Giấy phép mở Apache 2.0 / Commercial | Được phép thương mại | Tùy gói đăng ký |
+| Tiêu Chí Đánh Giá | Mục Tiêu Kỹ Thuật | Phương Pháp Kiểm Chứng |
+|---|---|---|
+| **Tỷ lệ khung hình dọc 9:16** | Độ phân giải mục tiêu 1080×1920 hoặc tỷ lệ 9:16 tương đương không bị méo | Kiểm tra resolution thực tế của ảnh xuất ra |
+| **Độ chân thực giáp trụ & trang phục** | Giáp trụ, thuyền chiến, vũ khí (cọc gỗ, nỏ liên châu, đao kiếm) thuần phong cách Việt, tránh lai tạp | Đánh giá trực quan bởi chuyên gia / người am hiểu cổ phục |
+| **Tính nhất quán phân cảnh (Consistency)** | Nhân vật và bối cảnh giữ nguyên phong cách qua các phân cảnh liên tiếp | Sử dụng Seed cố định hoặc LoRA đặc thù cho từng thời kỳ |
+| **Giấy phép thương mại (Commercial Rights)** | Hình ảnh được cấp quyền thương mại đầy đủ | Sử dụng mô hình có giấy phép mã nguồn mở thương mại hoặc API trả phí chính thức |
 
-👉 **Lựa chọn tối ưu:** **Flux Schnell** (thông qua Together AI / Replicate API) kết hợp thư viện Prompt kiến trúc & trang phục cổ truyền Việt Nam.  
-*Ước tính chi phí hình ảnh cho 1 video 4 cảnh (4 ảnh 9:16):* **~0.016 USD (~400 VNĐ)**.
+*Các mô hình ứng viên tiềm năng để thẩm định thực tế:* Flux Ecosystem (Flux.1 Schnell / Dev via Inference API), Recraft AI, Midjourney API (qua kênh tích hợp chính thức).
 
 ---
 
 ### C. AI Giọng Thuyết Minh Tiếng Việt & Khớp Phụ Đề (Voice Agent)
 
-Yêu cầu: Giọng đọc hào sảng, uy nghiêm, phát âm chuẩn tên danh nhân/địa danh Việt Nam, và **phải cung cấp word-level timestamps** để hiển thị Kinetic Subtitles.
+Yêu cầu cốt lõi cho Facebook Reels là âm điệu truyền cảm hào hùng và **bắt buộc phải có word-level timestamps**:
 
-| Tiêu Chí | FPT.AI Voice Maker ⭐ (Đề xuất trong nước) | ElevenLabs Multilingual v2 | Vbee AIVoice |
-|---|---|---|---|
-| **Chất lượng giọng đọc** | Chuẩn ngữ điệu Bắc/Nam hào hùng (Giọng Ban Mai, Minh Quang) | Tự nhiên, cảm xúc cinematic đỉnh cao | Khá, phù hợp tin tức |
-| **Phát âm từ Hán-Việt & Lịch sử** | **Tốt nhất** (Được tối ưu cho ngôn ngữ Việt) | Cần tinh chỉnh SSML phiên âm | Tốt |
-| **Word-Level Timestamps** | Hỗ trợ qua Whisper alignment / Speech Marks | Native qua WebSocket / API | Giới hạn |
-| **Chi phí** | **~10đ - 15đ / ký tự** (~600đ - 1.200đ / video 60 từ) | ~$0.04 - $0.08 / video (~1.000đ - 2.000đ) | ~20đ / ký tự |
-| **Hạ tầng máy chủ** | Đặt tại Việt Nam (Độ trễ thấp < 1s) | Quốc tế | Việt Nam |
+| Tiêu Chí Đánh Giá | Mục Tiêu Kỹ Thuật | Phương Pháp Kiểm Chứng |
+|---|---|---|
+| **Phát âm danh từ lịch sử & Hán-Việt** | Đọc chính xác tên danh nhân (Ngô Quyền, Trần Hưng Đạo, Quang Trung), địa danh, từ cổ | Thử nghiệm danh sách 100 từ vựng lịch sử dễ phát âm sai |
+| **Word-Level Timestamps** | Trả về thời điểm bắt đầu (`start`) và kết thúc (`end`) của từng từ chính xác | So sánh waveform âm thanh thực tế với timestamps của từ |
+| **Ngữ điệu hào sảng, truyền cảm** | Không đều đều như máy đọc tin tức; phù hợp không khí sử thi | Đánh giá điểm trải nghiệm người nghe qua khảo sát mù (A/B testing) |
+| **Độ trễ hạ tầng (Server Latency)** | Thời gian tổng hợp giọng đọc nhanh, băng thông ổn định tại Việt Nam | Đo đạc P95 latency qua 50 requests liên tiếp |
 
-👉 **Lựa chọn tối ưu:** 
-- Lựa chọn 1 (Chi phí thấp, phát âm chuẩn Việt): **FPT.AI Voice** kết hợp Whisper Timestamp Extractor.
-- Lựa chọn 2 (Đỉnh cao điện ảnh): **ElevenLabs** (Giọng nam trầm ấm, hào hùng).
-*Ước tính chi phí âm thanh cho 1 video 60s (~120 từ):* **~1.200 VNĐ - 2.500 VNĐ**.
+*Các mô hình ứng viên tiềm năng để thẩm định thực tế:* FPT.AI Voice Maker, Vbee AIVoice, ElevenLabs Multilingual Model kết hợp bộ căn chỉnh Whisper Timestamps.
 
 ---
 
-## 2. Bảng Dự Toán Chi Phí Sản Xuất 1 Video Reels Hoàn Chỉnh
+## 2. Mô Hình Hóa Chi Phí Sản Xuất Theo Công Thức Toán Học
 
-| Thành Phần Pipeline | Công Nghệ Sử Dụng | Chi Phí Dự Kiến (USD) | Chi Phí Quy Đổi (VNĐ) |
-|---|---|---|---|
-| **1. Nghiên cứu & Trích dẫn sử liệu** | Gemini 1.5 Flash (1.200 tokens) | $0.00018 | ~ 5 VNĐ |
-| **2. Biên kịch kịch bản 3 hồi & Hooks** | Gemini 1.5 Flash (1.800 tokens) | $0.00035 | ~ 9 VNĐ |
-| **3. Sinh 4 ảnh cổ phong 9:16** | Flux Schnell (4 ảnh HD) | $0.01600 | ~ 406 VNĐ |
-| **4. Giọng đọc thuyết minh 60s** | FPT.AI / ElevenLabs Starter | $0.04000 | ~ 1.016 VNĐ |
-| **5. Cắt ghép, Subtitles & Render MP4** | Remotion + FFmpeg (Server CPU) | $0.00000 | 0 VNĐ |
-| **TỔNG CỘNG MỖI VIDEO 60S** | **Multi-Agent Stack** | **~$0.056 USD** | **~1.436 VNĐ** |
+Thay vì sử dụng các con số báo giá cố định có thể thay đổi theo thời gian, hệ thống áp dụng công thức tính toán chi phí linh hoạt dựa trên đơn vị tiêu thụ thực tế:
 
-> [!TIP]
-> **Hiệu quả kinh tế:** Với mức chi phí chỉ khoảng **1.500 VNĐ / video**, ngân sách 500.000 VNĐ có thể sản xuất được hơn **330 video lịch sử chất lượng cao**.
+$$C_{\text{video}} = C_{\text{LLM}}(T_{\text{in}}, T_{\text{out}}) + \sum_{i=1}^{N_{\text{scenes}}} C_{\text{Image}}(i) + C_{\text{TTS}}(L_{\text{chars}}) + C_{\text{compute}}$$
+
+Trong đó:
+- $C_{\text{LLM}}(T_{\text{in}}, T_{\text{out}}) = T_{\text{in}} \times P_{\text{token\_in}} + T_{\text{out}} \times P_{\text{token\_out}}$ (đo bằng Tokens tiêu thụ trong quá trình nghiên cứu và viết kịch bản).
+- $C_{\text{Image}}(i)$: Chi phí sinh 1 hình ảnh hoặc frame đồ họa cho phân cảnh thứ $i$.
+- $C_{\text{TTS}}(L_{\text{chars}}) = L_{\text{chars}} \times P_{\text{char}}$ hoặc $D_{\text{sec}} \times P_{\text{sec}}$: Chi phí sinh giọng đọc dựa trên số lượng ký tự hoặc thời lượng giây âm thanh.
+- $C_{\text{compute}}$: Chi phí CPU/GPU kết xuất video Remotion + FFmpeg cục bộ (bằng 0đ trên máy chủ nội bộ).
+
+Mọi đơn vị tiêu thụ thực tế đều được ghi vết minh bạch vào bảng cơ sở dữ liệu `CostLog` thông qua interface `CostRecord`:
+```typescript
+export interface CostRecord {
+  id: string;
+  projectId: string;
+  provider: string;
+  service: ServiceType;
+  unitsUsed: number;
+  unitType: 'TOKENS' | 'CHARACTERS' | 'SECONDS' | 'IMAGES';
+  estimatedCostUSD: number;
+  estimatedCostVND: number;
+  createdAt: string;
+}
+```
 
 ---
 
-## 3. Kiến Trúc Tích Hợp Không Khóa Nhà Cung Cấp (Vendor Agnostic Architecture)
+## 3. Kiến Trúc Tách Biệt & Cấu Hình Mềm (Vendor-Agnostic Design)
 
-Toàn bộ hệ thống tuân thủ nghiêm ngặt mô hình Interface trong package `@vietsu/ai-providers`:
+Tất cả các kết nối đến AI Provider đều được trừu tượng hóa tuyệt đối phía sau interface trong thư viện `@vietsu/ai-providers`:
 
 ```
                ┌───────────────────────┐
@@ -89,40 +99,31 @@ Toàn bộ hệ thống tuân thủ nghiêm ngặt mô hình Interface trong pac
  └───────┬───────┘ └───────┬───────┘ └───────┬───────┘
     ┌────┴────┐       ┌────┴────┐       ┌────┴────┐
     ▼         ▼       ▼         ▼       ▼         ▼
-  Mock    Gemini    Mock     Flux     Mock    FPT.AI
-  LLM      Flash    Image   Schnell   Voice   ElevenLabs
+  Mock     (Live)   Mock     (Live)   Mock     (Live)
 ```
 
-Cấu hình thông qua biến môi trường tại `.env` mà không sửa đổi core logic:
+Không có bất kỳ API Key nào được hardcode. Khi người dùng phê duyệt việc tích hợp trong tương lai, hệ thống chỉ kích hoạt thông qua file cấu hình môi trường `.env`:
+
 ```env
-# AI Provider Selection
-LLM_PROVIDER=gemini           # mock | gemini | openai
-IMAGE_PROVIDER=flux           # mock | flux | recraft
-TTS_PROVIDER=fpt              # mock | fpt | elevenlabs
+# Mặc định Phase 1: Hoạt động 100% Mock không tốn phí
+LLM_PROVIDER=mock
+IMAGE_PROVIDER=mock
+TTS_PROVIDER=mock
 
-# Commercial API Keys (Chỉ cấu hình khi được phê duyệt)
-GEMINI_API_KEY=
-TOGETHER_API_KEY=
-FPT_AI_API_KEY=
-ELEVENLABS_API_KEY=
+# Cấu hình dự phòng cho Phase 2 (Chỉ mở khi có phê duyệt và khóa hợp đồng)
+# GEMINI_API_KEY=
+# FLUX_API_KEY=
+# TTS_API_KEY=
 ```
 
 ---
 
-## 4. Cơ Chế Phòng Ngừa Bịa Đặt Sử Liệu Khi Dùng AI Thật
+## 4. Quy Trình Bảo Đảm Độ Tin Cậy Khi Đưa AI Vào Vận Hành
 
-Để đảm bảo nguyên tắc cốt lõi: *"Không bịa đặt sự kiện lịch sử hoặc nguồn tham khảo"*:
-1. **Kiểm tra chéo (Cross-verification step)**: Script Agent không được phép tự do sáng tác ngoài các Fact IDs đã được thẩm định trong `ResearchDossier`.
-2. **Grounding Prompts**: Sử dụng kỹ thuật Few-shot System Instruction nghiêm ngặt, yêu cầu trích xuất nguyên văn chương/hồi từ các ấn bản điện tử chính sử.
-3. **Cổng kiểm duyệt con người (Human-in-the-loop Gate)**: Trước khi Visual Agent và Voice Agent sinh tài nguyên tốn phí, giao diện người dùng hiển thị toàn bộ hồ sơ dữ kiện để bấm **Phê Duyệt**.
-4. **Hệ thống theo dõi chi phí thực tế**: Mọi request tới API thương mại đều ghi lại `CostLog` vào cơ sở dữ liệu để cảnh báo nếu vượt ngưỡng ngân sách.
-
----
-
-## 5. Lộ Trình Triển Khai (Phase 2 Roadmap)
-
-- **Bước 1:** Trình duyệt kế hoạch và xin cấp hạn mức API Gemini & Flux.
-- **Bước 2:** Triển khai class `GeminiLLMProvider` và kiểm thử tỷ lệ bám sát sự kiện lịch sử.
-- **Bước 3:** Triển khai class `FluxImageProvider` với preset prompt cổ phục Việt Nam.
-- **Bước 4:** Triển khai class `FptTtsProvider` và bộ trích xuất word-level timestamps.
-- **Bước 5:** Chạy thử nghiệm E2E 3 chủ đề lịch sử kinh điển (Bạch Đằng 938, Lam Sơn Khởi Nghĩa, Chiến thắng Ngọc Hồi - Đống Đa) với người dùng kiểm tra chất lượng hình ảnh & giọng đọc.
+1. **Cổng Phê Duyệt Con Người (Human-in-the-Loop Gate)**: 
+   - Sử liệu phải được người dùng bấm duyệt trước khi kịch bản được viết.
+   - Kịch bản phải được bấm duyệt trước khi tài nguyên tốn phí (ảnh, âm thanh) được khởi tạo.
+2. **Kiểm Định Độc Lập Thực Sự (`isIndependentlyVerified`)**:
+   - Cấm gán nhãn "Đã kiểm định" nếu chỉ dựa vào văn bản AI tự sinh mà không có văn bản chứng thực đối chiếu từ nguồn học thuật hoặc tư liệu lịch sử lưu trữ chuẩn.
+3. **Cảnh Báo Vùng An Toàn & Lệch Âm Thanh (QA Rigor)**:
+   - Tự động phát hiện và cảnh báo mọi hiện tượng phụ đề tràn vùng safe-zone (< 260px từ đáy) hoặc phụ đề lệch pha với âm thanh.

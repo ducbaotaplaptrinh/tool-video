@@ -1,6 +1,11 @@
 import { prisma } from '../db.js';
 
 export class JobRecoveryService {
+  /**
+   * Recovers any jobs left in RUNNING status following a backend server restart or crash.
+   * Ensures state consistency: all dangling jobs and their projects are marked FAILED,
+   * enabling safe, idempotent retries without creating duplicate jobs.
+   */
   static async recoverDanglingJobs(): Promise<number> {
     const runningJobs = await prisma.job.findMany({
       where: { status: 'RUNNING' }
@@ -14,7 +19,7 @@ export class JobRecoveryService {
 
     for (const job of runningJobs) {
       const logs: string[] = JSON.parse(job.logs || '[]');
-      logs.push(`[${new Date().toISOString()}] [RECOVERY] Máy chủ khởi động lại trong khi tác vụ đang xử lý. Tiến trình bị hủy an toàn để tránh xung đột.`);
+      logs.push(`[${new Date().toISOString()}] [RECOVERY] Máy chủ khởi động lại trong khi tác vụ "${job.step}" đang xử lý. Tiến trình bị hủy an toàn để tránh xung đột.`);
 
       await prisma.job.update({
         where: { id: job.id },
@@ -26,22 +31,13 @@ export class JobRecoveryService {
         }
       });
 
-      // Revert project status to last stable checkpoint
-      const project = await prisma.project.findUnique({ where: { id: job.projectId } });
-      if (project) {
-        let fallbackStatus = 'FAILED';
-        if (job.step === 'RESEARCH') fallbackStatus = 'DRAFT';
-        else if (job.step === 'SCRIPTING') fallbackStatus = 'RESEARCH_PENDING_APPROVAL';
-        else if (job.step === 'ASSET_GENERATION' || job.step === 'EDITING_AND_QA') fallbackStatus = 'SCRIPT_PENDING_APPROVAL';
-        else if (job.step === 'RENDERING') fallbackStatus = 'READY_TO_RENDER';
+      // Maintain consistent state: mark project as FAILED so user can cleanly trigger retry()
+      await prisma.project.update({
+        where: { id: job.projectId },
+        data: { status: 'FAILED' }
+      });
 
-        await prisma.project.update({
-          where: { id: job.projectId },
-          data: { status: fallbackStatus }
-        });
-
-        console.log(`[JobRecovery] Dự án ${job.projectId} đã được khôi phục về trạng thái an toàn: ${fallbackStatus}`);
-      }
+      console.log(`[JobRecovery] Dự án ${job.projectId} đã được đồng bộ trạng thái FAILED an toàn.`);
     }
 
     return runningJobs.length;

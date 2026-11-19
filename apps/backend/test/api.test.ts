@@ -6,6 +6,8 @@ import { WorkflowEngine } from '../src/orchestrator/workflow-engine.js';
 import { JobRecoveryService } from '../src/orchestrator/job-recovery.service.js';
 import { ProviderRegistry } from '@vietsu/ai-providers';
 import { StorageService } from '../src/storage/storage.service.js';
+import { QAAgent } from '../src/agents/qa-agent.js';
+import { VietSuReelProps, ScriptDocument, ResearchDossier } from '@vietsu/shared';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -396,18 +398,9 @@ async function runTests() {
       assert.ok(recoveredJob?.error?.includes('Server restart'), 'Job error must record server restart');
 
       const recoveredProject = await prisma.project.findUnique({ where: { id: testProjectId } });
-      assert.ok(
-        recoveredProject?.status === 'READY_TO_RENDER' || recoveredProject?.status === 'FAILED',
-        'Project status must be reset to a safe state'
-      );
+      assert.strictEqual(recoveredProject?.status, 'FAILED', 'Project status must be FAILED after recovery');
 
       // 13.3 Test Retry endpoint (POST /api/projects/:id/pipeline/retry)
-      // Transition to FAILED to test retry
-      await prisma.project.update({
-        where: { id: testProjectId },
-        data: { status: 'FAILED' }
-      });
-
       const retryRes = await fetch(`${baseUrl}/projects/${testProjectId}/pipeline/retry`, {
         method: 'POST'
       });
@@ -417,6 +410,451 @@ async function runTests() {
       await sleep(1500);
       const retriedJob = await prisma.job.findUnique({ where: { id: crashedJob.id } });
       assert.ok((retriedJob?.retryCount || 0) >= 1, 'Job retryCount must be incremented');
+    });
+
+    // 14. Concurrency Guard: Prevents race conditions on simultaneous pipeline start requests
+    await test('Concurrency Guard: exactly 1 of 5 simultaneous start requests succeeds (409 Conflict for 4)', async () => {
+      const concurrentProject = await prisma.project.create({
+        data: {
+          title: 'Dự án Đua Lệnh Concurrency Test',
+          historicalEra: 'Thời kỳ Tiền Ngô',
+          status: 'DRAFT',
+          targetDurationSec: 45
+        }
+      });
+
+      // Fire 5 simultaneous requests to start pipeline
+      const requests = Array.from({ length: 5 }, () =>
+        fetch(`${baseUrl}/projects/${concurrentProject.id}/pipeline/start`, {
+          method: 'POST'
+        })
+      );
+
+      const responses = await Promise.all(requests);
+      const statusCodes = responses.map((r) => r.status);
+      const count200 = statusCodes.filter((s) => s === 200).length;
+      const count409 = statusCodes.filter((s) => s === 409).length;
+
+      assert.strictEqual(count200, 1, `Exactly one concurrent request must succeed with 200 (actual: ${count200})`);
+      assert.strictEqual(count409, 4, `Exactly 4 concurrent requests must be rejected with 409 Conflict (actual: ${count409})`);
+
+      // Allow background job to initiate and assert only 1 job was created
+      await sleep(1000);
+      const jobs = await prisma.job.findMany({ where: { projectId: concurrentProject.id } });
+      assert.strictEqual(jobs.length, 1, 'Exactly one job must be created in the database');
+    });
+
+    // 15. JobRecoveryService Idempotency & State Consistency
+    await test('JobRecoveryService: Idempotency verification (repeated recovery returns 0 dangling jobs)', async () => {
+      const danglingProj = await prisma.project.create({
+        data: {
+          title: 'Dự án Treo Sau Crash Test',
+          historicalEra: 'Thời kỳ Nhà Trần',
+          status: 'SCRIPTING',
+          targetDurationSec: 45
+        }
+      });
+
+      const danglingJob = await prisma.job.create({
+        data: {
+          projectId: danglingProj.id,
+          step: 'SCRIPTING',
+          status: 'RUNNING',
+          progressPercent: 50,
+          logs: JSON.stringify(['Task running before unexpected termination']),
+          startedAt: new Date()
+        }
+      });
+
+      // First recovery run
+      const recoveredFirst = await JobRecoveryService.recoverDanglingJobs();
+      assert.ok(recoveredFirst >= 1, 'First run must recover the dangling job');
+
+      const checkProj = await prisma.project.findUnique({ where: { id: danglingProj.id } });
+      assert.strictEqual(checkProj?.status, 'FAILED', 'Project must be in FAILED status');
+
+      const checkJob = await prisma.job.findUnique({ where: { id: danglingJob.id } });
+      assert.strictEqual(checkJob?.status, 'FAILED', 'Job must be in FAILED status');
+
+      // Second recovery run immediately after
+      const recoveredSecond = await JobRecoveryService.recoverDanglingJobs();
+      assert.strictEqual(recoveredSecond, 0, 'Second run must recover 0 jobs (idempotent)');
+    });
+
+    // 16. QA Agent Epistemic Rigor: isIndependentlyVerified logic
+    await test('QA Agent: isIndependentlyVerified requires explicit attested evidence, not merely lack of mock flag', async () => {
+      const qaAgent = new QAAgent();
+
+      const sampleReelProps: VietSuReelProps = {
+        projectId: 'test-proj',
+        title: 'Bạch Đằng',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        bgmVolume: 0.25,
+        scenes: [
+          {
+            sceneNumber: 1,
+            visualUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+            audioUrl: 'data:audio/wav;base64,UklGRg==',
+            durationInFrames: 180,
+            cameraMotion: 'ZOOM_IN',
+            subtitles: [
+              { word: 'Chiến', start: 0.2, end: 0.6 },
+              { word: 'thắng', start: 0.7, end: 1.1 },
+              { word: 'Bạch', start: 1.2, end: 1.6 },
+              { word: 'Đằng', start: 1.7, end: 5.2 }
+            ],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+
+      const sampleScript: ScriptDocument = {
+        title: 'Bạch Đằng',
+        hook: 'Sông Bạch Đằng cuộn sóng ngàn thu oanh liệt hào hùng',
+        context: 'Năm 938 quân Nam Hán kéo sang xâm lược nước ta',
+        climax: 'Ngô Quyền đóng cọc nhọn tiêu diệt toàn bộ thủy quân giặc',
+        resolutionAndCta: 'Mở ra kỷ nguyên độc lập tự chủ lâu dài cho dân tộc',
+        fullNarrative: 'Sông Bạch Đằng cuộn sóng ngàn thu oanh liệt hào hùng. Năm 938 quân Nam Hán xâm lược nước ta. Ngô Quyền đóng cọc nhọn tiêu diệt toàn bộ thủy quân giặc.',
+        totalWords: 35,
+        estimatedTotalDurationSec: 6,
+        isApproved: true,
+        scenes: []
+      };
+
+      // Case A: Mock engine flagged dossier -> must be false
+      const mockDossier: ResearchDossier = {
+        topic: 'Bạch Đằng',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        summary: 'Tóm tắt chiến thắng Bạch Đằng năm 938',
+        verifiedAt: new Date().toISOString(),
+        isApproved: true,
+        isMockEngine: true,
+        facts: [
+          {
+            id: 'f1',
+            category: 'CONFIRMED_FACT',
+            factSummary: 'Chiến thắng Bạch Đằng diễn ra năm 938',
+            yearOrEra: '938',
+            keyFigures: ['Ngô Quyền'],
+            location: 'Sông Bạch Đằng',
+            citations: [
+              {
+                id: 'c1',
+                sourceTitle: 'Đại Việt Sử Ký Toàn Thư',
+                author: 'Ngô Sĩ Liên',
+                volumeOrChapter: 'Quyển 5',
+                quoteExcerpt: 'Ngô Quyền dùng cọc gỗ nhọn đóng dưới lòng sông',
+                isMockSource: true
+              }
+            ]
+          }
+        ]
+      };
+      const reportMock = qaAgent.execute(sampleReelProps, sampleScript, mockDossier);
+      assert.strictEqual(reportMock.isIndependentlyVerified, false, 'Mock dossier must NOT be independently verified');
+      assert.ok(reportMock.warnings.some((w) => w.includes('[MOCK ENGINE]')));
+
+      // Case B: Non-mock dossier but citation has NO verification evidence -> must be false
+      const unverifiedAiDossier: ResearchDossier = {
+        ...mockDossier,
+        isMockEngine: false,
+        facts: [
+          {
+            ...mockDossier.facts[0],
+            citations: [
+              {
+                id: 'c2',
+                sourceTitle: 'Tài liệu trôi nổi trên mạng',
+                author: 'Khuyết danh',
+                volumeOrChapter: 'Chương 1',
+                quoteExcerpt: 'Dữ liệu chưa qua kiểm chứng học thuật',
+                isMockSource: false,
+                isIndependentlyVerified: false
+              }
+            ]
+          }
+        ]
+      };
+      const reportUnverified = qaAgent.execute(sampleReelProps, sampleScript, unverifiedAiDossier);
+      assert.strictEqual(reportUnverified.isIndependentlyVerified, false, 'Unattested citation must NOT be independently verified');
+      assert.ok(reportUnverified.warnings.some((w) => w.includes('[CHƯA KIỂM ĐỊNH ĐỘC LẬP]')));
+
+      // Case C: Attested citation with explicit verification evidence -> must be true
+      const attestedDossier: ResearchDossier = {
+        ...mockDossier,
+        isMockEngine: false,
+        facts: [
+          {
+            ...mockDossier.facts[0],
+            citations: [
+              {
+                id: 'c3',
+                sourceTitle: 'Đại Việt Sử Ký Toàn Thư',
+                author: 'Ngô Sĩ Liên',
+                volumeOrChapter: 'Quyển 5 - Kỷ Nhà Ngô',
+                quoteExcerpt: 'Ngô Quyền dùng cọc vạt nhọn bịt sắt cắm ngầm ở cửa biển',
+                isMockSource: false,
+                isIndependentlyVerified: true,
+                verificationEvidence: 'Đối chiếu với bản khắc gỗ mộc bản Triều Nguyễn và di chỉ bãi cọc Yên Giang'
+              }
+            ]
+          }
+        ]
+      };
+      const reportAttested = qaAgent.execute(sampleReelProps, sampleScript, attestedDossier);
+      assert.strictEqual(reportAttested.isIndependentlyVerified, true, 'Attested citation with evidence must be independently verified');
+    });
+
+    // 17. QA Agent Safe-Zone Geometric Validation
+    await test('QA Agent: Safe-Zone geometry detects margin violations (< 260px from bottom, > 900px width, > 8 words/chunk)', async () => {
+      const qaAgent = new QAAgent();
+
+      const baseReelProps: VietSuReelProps = {
+        projectId: 'sz-test',
+        title: 'Safe Zone Test',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        bgmVolume: 0.25,
+        scenes: []
+      };
+
+      const baseScript: ScriptDocument = {
+        title: 'Safe Zone Test',
+        hook: 'Khám phá trận địa cọc ngầm oanh liệt trên sông Bạch Đằng',
+        context: 'Năm 938 quân giặc tiến vào cửa sông hiểm trở',
+        climax: 'Đoàn thuyền giặc vỡ toác trước bãi cọc nhọn',
+        resolutionAndCta: 'Chiến thắng vẻ vang ngàn năm rạng rỡ non sông',
+        fullNarrative: 'Khám phá trận địa cọc ngầm oanh liệt trên sông Bạch Đằng. Năm 938 quân giặc tiến vào cửa sông hiểm trở. Đoàn thuyền giặc vỡ toác trước bãi cọc nhọn.',
+        totalWords: 35,
+        estimatedTotalDurationSec: 6,
+        isApproved: true,
+        scenes: []
+      };
+
+      const validDossier: ResearchDossier = {
+        topic: 'Safe Zone Test',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        summary: 'Kiểm tra safe zone',
+        verifiedAt: new Date().toISOString(),
+        isApproved: true,
+        isMockEngine: true,
+        facts: [
+          {
+            id: 'f1',
+            category: 'CONFIRMED_FACT',
+            factSummary: 'Trận Bạch Đằng',
+            yearOrEra: '938',
+            keyFigures: ['Ngô Quyền'],
+            location: 'Bạch Đằng',
+            citations: [
+              {
+                id: 'c1',
+                sourceTitle: 'Sử Ký',
+                author: 'Sử gia',
+                volumeOrChapter: 'Q1',
+                quoteExcerpt: 'Trích dẫn',
+                isMockSource: true
+              }
+            ]
+          }
+        ]
+      };
+
+      // 17.1 Violation: bottomPx = 150 (< 260px)
+      const propsBottomViolation: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            sceneNumber: 1,
+            visualUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+            audioUrl: 'data:audio/wav;base64,UklGRg==',
+            durationInFrames: 180,
+            cameraMotion: 'ZOOM_IN',
+            subtitles: [{ word: 'Test', start: 0.2, end: 5.0 }],
+            subtitleLayout: { bottomPx: 150, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repBottom = qaAgent.execute(propsBottomViolation, baseScript, validDossier);
+      assert.strictEqual(repBottom.safeZoneCheckPassed, false, 'bottomPx < 260 must fail safe-zone');
+      assert.ok(repBottom.warnings.some((w) => w.includes('vi phạm vùng an toàn')));
+
+      // 17.2 Violation: maxWidthPx = 980 (> 900px)
+      const propsWidthViolation: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            ...propsBottomViolation.scenes[0],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 980, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repWidth = qaAgent.execute(propsWidthViolation, baseScript, validDossier);
+      assert.strictEqual(repWidth.safeZoneCheckPassed, false, 'maxWidthPx > 900 must fail safe-zone');
+      assert.ok(repWidth.warnings.some((w) => w.includes('vượt quá 900px')));
+
+      // 17.3 Violation: maxWordsPerChunk = 12 (> 8 words)
+      const propsChunkViolation: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            ...propsBottomViolation.scenes[0],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 12 }
+          }
+        ]
+      };
+      const repChunk = qaAgent.execute(propsChunkViolation, baseScript, validDossier);
+      assert.strictEqual(repChunk.safeZoneCheckPassed, false, 'maxWordsPerChunk > 8 must fail safe-zone');
+      assert.ok(repChunk.warnings.some((w) => w.includes('vượt quá giới hạn 8 từ')));
+
+      // 17.4 Valid Layout: bottomPx = 280, maxWidthPx = 900, maxWordsPerChunk = 6
+      const propsValid: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            ...propsBottomViolation.scenes[0],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repValid = qaAgent.execute(propsValid, baseScript, validDossier);
+      assert.strictEqual(repValid.safeZoneCheckPassed, true, 'Standard safe layout must pass safe-zone');
+    });
+
+    // 18. Decoupled Subtitle Checks: Syntax validity vs Audio Duration Alignment
+    await test('QA Agent: Distinguishes between subtitle timestamp syntax and audio duration alignment', async () => {
+      const qaAgent = new QAAgent();
+
+      const baseReelProps: VietSuReelProps = {
+        projectId: 'sync-test',
+        title: 'Sync Test',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        bgmVolume: 0.25,
+        scenes: []
+      };
+
+      const baseScript: ScriptDocument = {
+        title: 'Sync Test',
+        hook: 'Hào khí non sông cuộn trào muôn thuở oai hùng',
+        context: 'Ngô Quyền bày trận đón giặc Nam Hán trên dòng Bạch Đằng',
+        climax: 'Thủy triều rút nhanh cọc nhọn nhô lên đâm thủng thuyền giặc',
+        resolutionAndCta: 'Non sông nối lại bờ cõi nghìn năm vững bền muôn đời',
+        fullNarrative: 'Hào khí non sông cuộn trào muôn thuở oai hùng. Ngô Quyền bày trận đón giặc trên dòng Bạch Đằng. Thủy triều rút nhanh cọc nhọn nhô lên đâm thủng thuyền giặc.',
+        totalWords: 35,
+        estimatedTotalDurationSec: 6,
+        isApproved: true,
+        scenes: []
+      };
+
+      const baseDossier: ResearchDossier = {
+        topic: 'Sync Test',
+        historicalEra: 'Thời kỳ Tiền Ngô',
+        summary: 'Kiểm tra sync',
+        verifiedAt: new Date().toISOString(),
+        isApproved: true,
+        isMockEngine: true,
+        facts: [
+          {
+            id: 'f1',
+            category: 'CONFIRMED_FACT',
+            factSummary: 'Chiến thắng 938',
+            yearOrEra: '938',
+            keyFigures: ['Ngô Quyền'],
+            location: 'Bạch Đằng',
+            citations: [
+              {
+                id: 'c1',
+                sourceTitle: 'Sử Ký',
+                author: 'Sử gia',
+                volumeOrChapter: 'Q1',
+                quoteExcerpt: 'Trích dẫn xác minh',
+                isMockSource: true
+              }
+            ]
+          }
+        ]
+      };
+
+      // 18.1 Subtitles end prematurely (at 1.0s in a 6.0s / 180 frames scene)
+      // Syntax is completely valid, but audio duration alignment must fail!
+      const prematureProps: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            sceneNumber: 1,
+            visualUrl: 'data:image/svg+xml;base64,PHN2Zz4=',
+            audioUrl: 'data:audio/wav;base64,UklGRg==',
+            durationInFrames: 180, // 6.0 seconds
+            cameraMotion: 'STATIC',
+            subtitles: [
+              { word: 'Chiến', start: 0.1, end: 0.5 },
+              { word: 'thắng', start: 0.6, end: 1.0 } // ends at 1.0s << 6.0s
+            ],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repPremature = qaAgent.execute(prematureProps, baseScript, baseDossier);
+      assert.strictEqual(repPremature.detailedChecks['subtitle_timestamps_syntax_valid'], true, 'Timestamps are syntactically valid');
+      assert.strictEqual(repPremature.detailedChecks['audio_subtitle_duration_aligned'], false, 'Premature ending must fail duration alignment');
+      assert.ok(repPremature.warnings.some((w) => w.includes('Phụ đề kết thúc quá sớm')));
+
+      // 18.2 Subtitle timestamps reversed (start goes backward: 1.0s -> 0.5s)
+      // Syntax must fail!
+      const syntaxErrorProps: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            sceneNumber: 1,
+            visualUrl: 'data:image/svg+xml;base64,PHN2Zz4=',
+            audioUrl: 'data:audio/wav;base64,UklGRg==',
+            durationInFrames: 180,
+            cameraMotion: 'STATIC',
+            subtitles: [
+              { word: 'Chiến', start: 1.0, end: 1.5 },
+              { word: 'thắng', start: 0.5, end: 0.9 } // backward start!
+            ],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repSyntax = qaAgent.execute(syntaxErrorProps, baseScript, baseDossier);
+      assert.strictEqual(repSyntax.detailedChecks['subtitle_timestamps_syntax_valid'], false, 'Reversed timestamps must fail syntax');
+      assert.ok(repSyntax.warnings.some((w) => w.includes('bị lùi ngược')));
+
+      // 18.3 Both syntax and alignment pass cleanly
+      const wellAlignedProps: VietSuReelProps = {
+        ...baseReelProps,
+        scenes: [
+          {
+            sceneNumber: 1,
+            visualUrl: 'data:image/svg+xml;base64,PHN2Zz4=',
+            audioUrl: 'data:audio/wav;base64,UklGRg==',
+            durationInFrames: 180, // 6.0 seconds
+            cameraMotion: 'STATIC',
+            subtitles: [
+              { word: 'Sông', start: 0.2, end: 0.7 },
+              { word: 'Bạch', start: 0.8, end: 1.3 },
+              { word: 'Đằng', start: 1.4, end: 2.0 },
+              { word: 'dậy', start: 2.1, end: 2.8 },
+              { word: 'sóng', start: 2.9, end: 5.3 } // ends at 5.3s (~88% of 6.0s scene)
+            ],
+            subtitleLayout: { bottomPx: 280, maxWidthPx: 900, maxWordsPerChunk: 6 }
+          }
+        ]
+      };
+      const repAligned = qaAgent.execute(wellAlignedProps, baseScript, baseDossier);
+      assert.strictEqual(repAligned.detailedChecks['subtitle_timestamps_syntax_valid'], true);
+      assert.strictEqual(repAligned.detailedChecks['audio_subtitle_duration_aligned'], true);
+      assert.strictEqual(repAligned.detailedChecks['audio_video_sync'], true);
     });
 
   } finally {
