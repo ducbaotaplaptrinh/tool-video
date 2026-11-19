@@ -1,0 +1,123 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Project {
+  id                String         @id @default(uuid())
+  title             String
+  description       String?
+  historicalEra     String
+  aspectRatio       String         @default("9:16")
+  targetDurationSec Int            @default(45)
+  status            String         @default("DRAFT")
+  renderedVideoUrl  String?
+  qaReport          String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  researchItems     ResearchItem[]
+  script            Script?
+  scenes            Scene[]
+  assets            MediaAsset[]
+  jobs              Job[]
+  costs             CostLog[]
+}
+
+model ResearchItem {
+  id           String   @id @default(uuid())
+  projectId    String
+  category     String   // CONFIRMED_FACT, HISTORICAL_HYPOTHESIS, FOLKLORE_LEGEND
+  factSummary  String
+  yearOrEra    String
+  keyFigures   String   // JSON string array
+  location     String
+  citations    String   // JSON string of HistoricalCitation[]
+  createdAt    DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Script {
+  id                        String   @id @default(uuid())
+  projectId                 String   @unique
+  title                     String
+  hook                      String
+  context                   String
+  climax                    String
+  resolutionAndCta          String
+  fullNarrative             String
+  totalWords                Int
+  estimatedTotalDurationSec Int
+  isApproved                Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Scene {
+  id                   String   @id @default(uuid())
+  projectId            String
+  sceneNumber          Int
+  title                String
+  narrativeText        String
+  wordCount            Int
+  estimatedDurationSec Float
+  visualPrompt         String
+  cameraMotion         String   @default("ZOOM_IN")
+  visualUrl            String?
+  audioUrl             String?
+  durationInFrames     Int?
+  subtitles            String?  // JSON string array of WordTimestamp
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MediaAsset {
+  id          String   @id @default(uuid())
+  projectId   String
+  sceneNumber Int?
+  assetType   String   // IMAGE, AUDIO, VIDEO, MAP
+  url         String
+  localPath   String
+  mimeType    String
+  sizeBytes   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Job {
+  id              String    @id @default(uuid())
+  projectId       String
+  step            String
+  status          String    @default("QUEUED")
+  progressPercent Int       @default(0)
+  logs            String    // JSON string array
+  error           String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model CostLog {
+  id               String   @id @default(uuid())
+  projectId        String
+  provider         String
+  service          String
+  unitsUsed        Float
+  unitType         String
+  estimatedCostUSD Float
+  estimatedCostVND Float
+  createdAt        DateTime @default(now())
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}

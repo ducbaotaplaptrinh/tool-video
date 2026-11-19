@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs & caches
+dist/
+build/
+.cache/
+.remotion/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# SQLite & local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# Storage generated media (keep folder structures via .gitkeep)
+storage/assets/*
+!storage/assets/.gitkeep
+storage/audio/*
+!storage/audio/.gitkeep
+storage/videos/*
+!storage/videos/.gitkeep
+storage/temp/*
+!storage/temp/.gitkeep
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor configurations
+.vscode/
+.idea/

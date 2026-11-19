@@ -1,0 +1,28 @@
+{
+  "name": "vietsu-ai-studio",
+  "version": "1.0.0",
+  "description": "Nền tảng tự động sản xuất video lịch sử Việt Nam cho Facebook Reels",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:renderer": "npm run dev --workspace=apps/video-renderer",
+    "render:test": "npm run render --workspace=apps/video-renderer",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "keywords": [
+    "vietnam-history",
+    "ai-video",
+    "reels",
+    "remotion",
+    "multi-agent"
+  ],
+  "author": "VietSu AI Studio Team",
+  "license": "UNLICENSED"
+}
